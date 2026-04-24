@@ -1,0 +1,43 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate.d/
+*.tfvars.secret
+*.tfvars
+terraform/agents/terraform.tfvars
+terraform/database/terraform.tfvars
+terraform/frontend/terraform.tfvars
+
+# Lambda packages
+*.zip
+lambda-package/
+
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+out/
+.next/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# AWS
+.aws/

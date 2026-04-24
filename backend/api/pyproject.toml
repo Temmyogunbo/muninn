@@ -1,0 +1,18 @@
+[project]
+name = "muninn-api"
+version = "0.1.0"
+description = "Muninn HTTP API (programs, parents, students, courses, enrollments)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "muninn-database",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "mangum>=0.17.0",
+    "python-dotenv>=1.0.0",
+    "fastapi-clerk-auth>=0.0.5",
+    "boto3>=1.40.8",
+]
+
+[tool.uv.sources]
+muninn-database = { workspace = true }
