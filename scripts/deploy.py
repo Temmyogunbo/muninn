@@ -194,6 +194,27 @@ def package_lambda():
     print(f"  ✅ Lambda package created: {lambda_zip} ({size_mb:.2f} MB)")
 
 
+def package_reporter_lambda():
+    """Package the reporter agent Lambda (required before terraform/agents apply)."""
+    print("\n📦 Packaging reporter Lambda function...")
+
+    reporter_dir = Path(__file__).parent.parent / "backend" / "reporter"
+
+    if not reporter_dir.exists():
+        print(f"  ❌ Reporter directory not found: {reporter_dir}")
+        sys.exit(1)
+
+    run_command(["uv", "run", "package_docker.py"], cwd=reporter_dir)
+
+    lambda_zip = reporter_dir / "reporter_lambda.zip"
+    if not lambda_zip.exists():
+        print(f"  ❌ Reporter Lambda package not created: {lambda_zip}")
+        sys.exit(1)
+
+    size_mb = lambda_zip.stat().st_size / (1024 * 1024)
+    print(f"  ✅ Reporter Lambda package created: {lambda_zip} ({size_mb:.2f} MB)")
+
+
 def deploy_agents():
     """Deploy the agents using Terraform."""
     print("\n📦 Running deploy_all_lambdas.py...")
@@ -479,8 +500,9 @@ def main():
     else:
         os.environ.setdefault("TF_VAR_use_local_stack_state", "true")
 
-    # Package Lambda
+    # Package Lambdas (API for frontend stack; reporter zip for terraform/agents)
     package_lambda()
+    package_reporter_lambda()
 
     # Database and agents must be applied first so the frontend can read their outputs
     deploy_database_terraform()
