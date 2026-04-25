@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Deploy all Part 6 Lambda functions to AWS using Terraform.
+Deploy all  Lambda functions to AWS using Terraform.
 This script ensures Lambda functions are properly updated by:
 1. Optionally packaging the Lambda functions
 2. Tainting Lambda resources in Terraform to force recreation
@@ -21,6 +21,49 @@ import os
 from pathlib import Path
 from typing import List, Tuple
 
+environment = sys.argv[1] if len(sys.argv) > 1 else "dev"
+project_name = sys.argv[2] if len(sys.argv) > 2 else "muninn"
+
+def run_command(cmd, cwd=None, check=True, capture_output=False, env=None):
+    """Run a command and optionally capture output."""
+    print(f"Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+
+    if capture_output:
+        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, shell=isinstance(cmd, str), env=env)
+        if check and result.returncode != 0:
+            print(f"Error: {result.stderr}")
+            sys.exit(1)
+        return result.stdout.strip()
+    else:
+        result = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), env=env)
+        if check and result.returncode != 0:
+            sys.exit(1)
+        return None
+
+def setup_terraform(cwd):
+    if os.getenv("GITHUB_ACTIONS"):
+        # In CI: pull credentials from GitHub secrets, use stricter settings
+        # Get AWS account ID
+        aws_account_id = run_command(
+            ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],
+            capture_output=True
+        )
+
+        # Get AWS region
+        aws_region = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+
+        # Run terraform init
+        run_command([
+            "terraform", "init", "-input=false",
+            f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
+            f"-backend-config=key={environment}/terraform.tfstate",
+            f"-backend-config=region={aws_region}",
+            f"-backend-config=dynamodb_table=twin-terraform-locks",
+            f"-backend-config=encrypt=true",
+        ], cwd=cwd)
+
+        run_command(["terraform", "workspace", "list"],capture_output=True)
+
 def taint_and_deploy_via_terraform() -> bool:
     """
     Deploy Lambda functions using Terraform with forced recreation.
@@ -30,6 +73,10 @@ def taint_and_deploy_via_terraform() -> bool:
     """
     # Change to terraform directory
     terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
+
+    # Setup Terraform
+    setup_terraform(terraform_dir)
+
     if not terraform_dir.exists():
         print(f"❌ Terraform directory not found: {terraform_dir}")
         return False
@@ -128,7 +175,7 @@ def main():
     # Check for --package flag
     force_package = '--package' in sys.argv
     
-    print("🎯 Deploying Alex Agent Lambda Functions (via Terraform)")
+    print("🎯 Deploying Program Report Generator Agent Lambda Functions (via Terraform)")
     print("=" * 50)
     
     # Get AWS account ID

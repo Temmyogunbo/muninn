@@ -18,6 +18,8 @@ import json
 import time
 from pathlib import Path
 
+environment = sys.argv[1] if len(sys.argv) > 1 else "dev"
+project_name = sys.argv[2] if len(sys.argv) > 2 else "muninn"
 
 def run_command(cmd, cwd=None, check=True, capture_output=False, env=None):
     """Run a command and optionally capture output."""
@@ -35,6 +37,34 @@ def run_command(cmd, cwd=None, check=True, capture_output=False, env=None):
             sys.exit(1)
         return None
 
+def setup_terraform(cwd):
+    if os.getenv("GITHUB_ACTIONS"):
+        # In CI: pull credentials from GitHub secrets, use stricter settings
+        # Get AWS account ID
+        aws_account_id = run_command(
+            ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],
+            capture_output=True
+        )
+
+        # Get AWS region
+        aws_region = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+
+        # Run terraform init
+        run_command([
+            "terraform", "init", "-input=false",
+            f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
+            f"-backend-config=key={environment}/terraform.tfstate",
+            f"-backend-config=region={aws_region}",
+            f"-backend-config=dynamodb_table=twin-terraform-locks",
+            f"-backend-config=encrypt=true",
+        ], cwd=cwd)
+
+        workspace_list = run_command(["terraform", "workspace", "list"],capture_output=True)
+
+        if environment not in workspace_list:
+            run_command(["terraform", "workspace", "new", environment])
+        else:
+            run_command(["terraform", "workspace", "select", environment])
 
 def check_prerequisites():
     """Check that all required tools are installed."""
@@ -201,6 +231,9 @@ def deploy_terraform():
     if not terraform_dir.exists():
         print(f"  ❌ Terraform directory not found: {terraform_dir}")
         sys.exit(1)
+
+    # Setup Terraform
+    setup_terraform(terraform_dir)
 
     # Initialize Terraform if needed
     if not (terraform_dir / ".terraform").exists():
