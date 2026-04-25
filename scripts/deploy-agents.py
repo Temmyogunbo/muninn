@@ -83,6 +83,13 @@ def deploy_agents():
     if not backend_dir.exists():
         print(f"  ❌ Backend directory not found: {backend_dir}")
         sys.exit(1)
+    
+    # Sync the agents
+    print("\n📦 Syncing agents...")
+    run_command(
+        ["uv", "sync"],
+        cwd=backend_dir,
+    )
 
     # Run the deployment script
     run_command(
