@@ -11,7 +11,7 @@ echo "📂 Project root: $PROJECT_ROOT"
 
 # 1. Deploy infrastructure and Lambda functions
 echo "📦 Building infrastructure and deploying Lambda functions..."
-uv run deploy.py $ENVIRONMENT $PROJECT_NAME
+uv run $PROJECT_ROOT/scripts/deploy.py $ENVIRONMENT $PROJECT_NAME
 
 # 2. Final messages
 echo -e "\n✅ Deployment complete!"
