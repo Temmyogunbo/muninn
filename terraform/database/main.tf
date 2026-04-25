@@ -70,7 +70,7 @@ data "aws_subnets" "default" {
 }
 
 resource "aws_db_subnet_group" "aurora" {
-  name       = "muninn-aurora-subnet-group"
+  name       = "muninn-aurora-subnet-group-${var.environment}"
   subnet_ids = data.aws_subnets.default.ids
   
   tags = {
@@ -81,7 +81,7 @@ resource "aws_db_subnet_group" "aurora" {
 
 # Security group for Aurora
 resource "aws_security_group" "aurora" {
-  name        = "muninn-aurora-sg"
+  name        = "muninn-aurora-sg-${var.environment}"
   description = "Security group for muninn Aurora cluster"
   vpc_id      = data.aws_vpc.default.id
   
@@ -108,7 +108,7 @@ resource "aws_security_group" "aurora" {
 
 # Aurora Serverless v2 Cluster
 resource "aws_rds_cluster" "aurora" {
-  cluster_identifier     = "muninn-aurora-cluster"
+  cluster_identifier = "muninn-aurora-cluster-${var.environment}"
   engine                 = "aurora-postgresql"
   engine_mode            = "provisioned"
   engine_version         = "15.12"
@@ -162,7 +162,7 @@ resource "aws_rds_cluster_instance" "aurora" {
 
 # IAM role for Lambda to access Aurora Data API
 resource "aws_iam_role" "lambda_aurora_role" {
-  name = "muninn-lambda-aurora-role"
+  name = "muninn-lambda-aurora-role-${var.environment}"
   
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
