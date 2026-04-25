@@ -40,29 +40,26 @@ def run_command(cmd, cwd=None, check=True, capture_output=False, env=None):
             sys.exit(1)
         return None
 
-def setup_terraform(cwd):
+def setup_terraform(cwd, state_key: str | None = None):
     if os.getenv("GITHUB_ACTIONS"):
-        # In CI: pull credentials from GitHub secrets, use stricter settings
-        # Get AWS account ID
+        # In CI: same S3 key pattern as scripts/deploy.py for the agents root module
         aws_account_id = run_command(
             ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],
             capture_output=True
         )
 
-        # Get AWS region
         aws_region = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+        if state_key is None:
+            state_key = f"agents/{environment}/terraform.tfstate"
 
-        # Run terraform init
         run_command([
-            "terraform", "init", "-input=false",
+            "terraform", "init", "-input=false", "-reconfigure",
             f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
-            f"-backend-config=key={environment}/terraform.tfstate",
+            f"-backend-config=key={state_key}",
             f"-backend-config=region={aws_region}",
             f"-backend-config=dynamodb_table=muninn-terraform-locks",
             f"-backend-config=encrypt=true",
         ], cwd=cwd)
-
-        run_command(["terraform", "workspace", "list"],capture_output=True)
 
 def taint_and_deploy_via_terraform() -> bool:
     """

@@ -19,29 +19,57 @@ data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
 
-# Reference Database resources
-data "terraform_remote_state" "database" {
-  backend = "local"
+# Read database and agents state: S3 in CI (see scripts/deploy.py keys) or local paths for dev machines.
+data "terraform_remote_state" "database_s3" {
+  count   = var.use_local_stack_state ? 0 : 1
+  backend = "s3"
   config = {
-    path = "../database/terraform.tfstate"
+    bucket         = "muninn-terraform-state-${data.aws_caller_identity.current.account_id}"
+    key            = "database/${var.environment}/terraform.tfstate"
+    region         = var.aws_region
+    dynamodb_table = "muninn-terraform-locks"
   }
 }
 
-# Reference Agents resources
-data "terraform_remote_state" "agents" {
+data "terraform_remote_state" "database_local" {
+  count   = var.use_local_stack_state ? 1 : 0
   backend = "local"
   config = {
-    path = "../agents/terraform.tfstate"
+    path = "${path.module}/../database/terraform.tfstate"
   }
+}
+
+data "terraform_remote_state" "agents_s3" {
+  count   = var.use_local_stack_state ? 0 : 1
+  backend = "s3"
+  config = {
+    bucket         = "muninn-terraform-state-${data.aws_caller_identity.current.account_id}"
+    key            = "agents/${var.environment}/terraform.tfstate"
+    region         = var.aws_region
+    dynamodb_table = "muninn-terraform-locks"
+  }
+}
+
+data "terraform_remote_state" "agents_local" {
+  count   = var.use_local_stack_state ? 1 : 0
+  backend = "local"
+  config = {
+    path = "${path.module}/../agents/terraform.tfstate"
+  }
+}
+
+locals {
+  database_state = var.use_local_stack_state ? data.terraform_remote_state.database_local[0] : data.terraform_remote_state.database_s3[0]
+  agents_state   = var.use_local_stack_state ? data.terraform_remote_state.agents_local[0] : data.terraform_remote_state.agents_s3[0]
 }
 
 locals {
   name_prefix = "muninn"
 
   common_tags = {
-    Project     = "muninn"
-    Part        = "frontend"
-    ManagedBy   = "terraform"
+    Project   = "muninn"
+    Part      = "frontend"
+    ManagedBy = "terraform"
   }
 }
 
@@ -133,14 +161,14 @@ resource "aws_iam_role_policy" "api_lambda_aurora" {
           "rds-data:CommitTransaction",
           "rds-data:RollbackTransaction"
         ]
-        Resource = data.terraform_remote_state.database.outputs.aurora_cluster_arn
+        Resource = local.database_state.outputs.aurora_cluster_arn
       },
       {
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = data.terraform_remote_state.database.outputs.aurora_secret_arn
+        Resource = local.database_state.outputs.aurora_secret_arn
       }
     ]
   })
@@ -160,7 +188,7 @@ resource "aws_iam_role_policy" "api_lambda_sqs" {
           "sqs:SendMessage",
           "sqs:GetQueueAttributes"
         ]
-        Resource = data.terraform_remote_state.agents.outputs.sqs_queue_arn
+        Resource = local.agents_state.outputs.sqs_queue_arn
       }
     ]
   })
@@ -201,13 +229,13 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       # Database configuration from Database part
-      AURORA_CLUSTER_ARN = data.terraform_remote_state.database.outputs.aurora_cluster_arn
-      AURORA_SECRET_ARN  = data.terraform_remote_state.database.outputs.aurora_secret_arn
-      AURORA_DATABASE    = data.terraform_remote_state.database.outputs.database_name
+      AURORA_CLUSTER_ARN = local.database_state.outputs.aurora_cluster_arn
+      AURORA_SECRET_ARN  = local.database_state.outputs.aurora_secret_arn
+      AURORA_DATABASE    = local.database_state.outputs.database_name
       DEFAULT_AWS_REGION = var.aws_region
 
       # SQS configuration from agent infrastructure layer
-      SQS_QUEUE_URL = data.terraform_remote_state.agents.outputs.sqs_queue_url
+      SQS_QUEUE_URL = local.agents_state.outputs.sqs_queue_url
 
       # Clerk configuration for JWT validation
       CLERK_JWKS_URL = var.clerk_jwks_url
@@ -234,10 +262,10 @@ resource "aws_apigatewayv2_api" "main" {
   tags          = local.common_tags
 
   cors_configuration {
-    allow_credentials = false  # Cannot be true when allow_origins is "*"
+    allow_credentials = false # Cannot be true when allow_origins is "*"
     allow_headers     = ["authorization", "content-type", "x-amz-date", "x-api-key", "x-amz-security-token"]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_origins     = ["*"]  # CORS is handled in Lambda via environment variables
+    allow_origins     = ["*"] # CORS is handled in Lambda via environment variables
     max_age           = 300
   }
 }

@@ -37,7 +37,11 @@ def run_command(cmd, cwd=None, check=True, capture_output=False, env=None):
             sys.exit(1)
         return None
 
-def setup_terraform(cwd):
+def setup_terraform(cwd, state_key: str | None = None):
+    """
+    S3 remote state. Each root module (database, agents, frontend) must have a
+    unique key so their states do not overwrite each other.
+    """
     if os.getenv("GITHUB_ACTIONS"):
         # In CI: pull credentials from GitHub secrets, use stricter settings
         # Get AWS account ID
@@ -48,23 +52,18 @@ def setup_terraform(cwd):
 
         # Get AWS region
         aws_region = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+        if state_key is None:
+            state_key = f"frontend/{environment}/terraform.tfstate"
 
-        # Run terraform init
+        # Run terraform init (use default workspace; environment is in the key path)
         run_command([
-            "terraform", "init", "-input=false",
+            "terraform", "init", "-input=false", "-reconfigure",
             f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
-            f"-backend-config=key={environment}/terraform.tfstate",
+            f"-backend-config=key={state_key}",
             f"-backend-config=region={aws_region}",
             f"-backend-config=dynamodb_table=muninn-terraform-locks",
             f"-backend-config=encrypt=true",
         ], cwd=cwd)
-
-        workspace_list = run_command(["terraform", "workspace", "list"],capture_output=True)
-
-        if environment not in workspace_list:
-            run_command(["terraform", "workspace", "new", environment])
-        else:
-            run_command(["terraform", "workspace", "select", environment])
 
 def check_prerequisites():
     """Check that all required tools are installed."""
@@ -103,6 +102,75 @@ def check_prerequisites():
         sys.exit(1)
 
 
+def deploy_database_terraform():
+    """Create or update the Aurora database stack (state key must match frontend remote data source)."""
+    print("\n🏗️  Deploying database (Terraform)...")
+    database_dir = Path(__file__).parent.parent / "terraform" / "database"
+    if not database_dir.exists():
+        print(f"  ❌ Terraform directory not found: {database_dir}")
+        sys.exit(1)
+
+    setup_terraform(database_dir, f"database/{environment}/terraform.tfstate")
+    if not (database_dir / ".terraform").exists():
+        run_command(["terraform", "init"], cwd=database_dir)
+
+    aws_reg = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+    base_apply = [
+        f"-var=aws_region={aws_reg}",
+    ]
+    run_command(["terraform", "plan"] + base_apply, cwd=database_dir)
+    run_command(["terraform", "apply", "-auto-approve"] + base_apply, cwd=database_dir)
+
+
+def deploy_agents_terraform():
+    """Deploy the agents stack after database outputs exist (same S3 key pattern as frontend remote data)."""
+    print("\n🏗️  Deploying agents (Terraform)...")
+    database_dir = Path(__file__).parent.parent / "terraform" / "database"
+    agents_dir = Path(__file__).parent.parent / "terraform" / "agents"
+    if not agents_dir.exists():
+        print(f"  ❌ Terraform directory not found: {agents_dir}")
+        sys.exit(1)
+
+    out_raw = run_command(
+        ["terraform", "output", "-json"],
+        cwd=database_dir,
+        capture_output=True
+    )
+    out = json.loads(out_raw)
+    aurora_cluster_arn = out["aurora_cluster_arn"]["value"]
+    aurora_secret_arn = out["aurora_secret_arn"]["value"]
+
+    setup_terraform(agents_dir, f"agents/{environment}/terraform.tfstate")
+    if not (agents_dir / ".terraform").exists():
+        run_command(["terraform", "init"], cwd=agents_dir)
+
+    aws_reg = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+    bedrock_m = os.getenv("TF_VAR_bedrock_model_id", "us.amazon.nova-pro-v1:0")
+    bedrock_r = os.getenv("TF_VAR_bedrock_region", aws_reg)
+    openai = os.getenv("TF_VAR_openai_api_key", "")
+    apply_vars = [
+        f"-var=aws_region={aws_reg}",
+        f"-var=aurora_cluster_arn={aurora_cluster_arn}",
+        f"-var=aurora_secret_arn={aurora_secret_arn}",
+        f"-var=bedrock_model_id={bedrock_m}",
+        f"-var=bedrock_region={bedrock_r}",
+    ]
+    if openai:
+        apply_vars.append(f"-var=openai_api_key={openai}")
+    lfp = os.getenv("TF_VAR_langfuse_public_key", "")
+    lfs = os.getenv("TF_VAR_langfuse_secret_key", "")
+    lfh = os.getenv("TF_VAR_langfuse_host", "")
+    if lfp:
+        apply_vars.append(f"-var=langfuse_public_key={lfp}")
+    if lfs:
+        apply_vars.append(f"-var=langfuse_secret_key={lfs}")
+    if lfh:
+        apply_vars.append(f"-var=langfuse_host={lfh}")
+
+    run_command(["terraform", "plan"] + apply_vars, cwd=agents_dir)
+    run_command(["terraform", "apply", "-auto-approve"] + apply_vars, cwd=agents_dir)
+
+
 def package_lambda():
     """Package the Lambda function using Docker."""
     print("\n📦 Packaging Lambda function...")
@@ -137,7 +205,10 @@ def deploy_agents():
         sys.exit(1)
 
     # Run the deployment script
-    run_command(["uv", "run", "deploy_all_lambdas.py"], cwd=backend_dir)
+    run_command(
+        ["uv", "run", "deploy_all_lambdas.py", environment],
+        cwd=backend_dir,
+    )
 
     # Get terraform outputs
     print("\n  Getting outputs...")
@@ -239,8 +310,8 @@ def deploy_terraform():
         print(f"  ❌ Terraform directory not found: {terraform_dir}")
         sys.exit(1)
 
-    # Setup Terraform
-    setup_terraform(terraform_dir)
+    # Setup Terraform (S3 key must match data.terraform_remote_state in main.tf)
+    setup_terraform(terraform_dir, f"frontend/{environment}/terraform.tfstate")
 
     # Initialize Terraform if needed
     if not (terraform_dir / ".terraform").exists():
@@ -401,11 +472,21 @@ def main():
 
     # Check prerequisites
     check_prerequisites()
+    # Frontend remote state and scripts expect this to match the chosen env (e.g. dev, test, prod)
+    os.environ["TF_VAR_environment"] = environment
+    if os.getenv("GITHUB_ACTIONS"):
+        os.environ["TF_VAR_use_local_stack_state"] = "false"
+    else:
+        os.environ.setdefault("TF_VAR_use_local_stack_state", "true")
 
     # Package Lambda
     package_lambda()
 
-    # Deploy infrastructure first to get the API URL
+    # Database and agents must be applied first so the frontend can read their outputs
+    deploy_database_terraform()
+    deploy_agents_terraform()
+
+    # Deploy frontend + API
     outputs = deploy_terraform()
 
     # Get the API URL from terraform outputs

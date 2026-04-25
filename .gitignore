@@ -5,10 +5,9 @@
 .terraform.lock.hcl
 terraform.tfstate.d/
 *.tfvars.secret
-*.tfvars
 terraform/setup/
 terraform/github/
-
+terraform/agents/terraform.tfvars
 # Lambda packages
 *.zip
 lambda-package/
