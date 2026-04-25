@@ -58,7 +58,7 @@ def setup_terraform(cwd):
             f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
             f"-backend-config=key={environment}/terraform.tfstate",
             f"-backend-config=region={aws_region}",
-            f"-backend-config=dynamodb_table=twin-terraform-locks",
+            f"-backend-config=dynamodb_table=muninn-terraform-locks",
             f"-backend-config=encrypt=true",
         ], cwd=cwd)
 

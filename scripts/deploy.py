@@ -55,7 +55,7 @@ def setup_terraform(cwd):
             f"-backend-config=bucket=muninn-terraform-state-{aws_account_id}",
             f"-backend-config=key={environment}/terraform.tfstate",
             f"-backend-config=region={aws_region}",
-            f"-backend-config=dynamodb_table=twin-terraform-locks",
+            f"-backend-config=dynamodb_table=muninn-terraform-locks",
             f"-backend-config=encrypt=true",
         ], cwd=cwd)
 
@@ -225,6 +225,13 @@ def build_frontend(api_url=None):
 def deploy_terraform():
     """Deploy infrastructure with Terraform."""
     print("\n🏗️  Deploying infrastructure with Terraform...")
+
+    if os.getenv("GITHUB_ACTIONS") and not os.getenv("TF_VAR_clerk_jwks_url"):
+        print(
+            "  ❌ CLERK_JWKS_URL is not set. Add it as a repository or Environment "
+            "secret; the workflow maps it to TF_VAR_clerk_jwks_url for Terraform."
+        )
+        sys.exit(1)
 
     terraform_dir = Path(__file__).parent.parent / "terraform" / "frontend"
 

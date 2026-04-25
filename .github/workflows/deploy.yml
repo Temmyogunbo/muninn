@@ -1,4 +1,4 @@
-name: Deploy Digital Twin
+name: Deploy Campaign Manager
 
 on:
   push:
@@ -69,6 +69,10 @@ jobs:
           ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          # Required by terraform/frontend (Lambda JWT validation). Set in repo or Environment secrets.
+          # Example value: https://<your-clerk-subdomain>.clerk.accounts.dev/.well-known/jwks.json
+          TF_VAR_clerk_jwks_url: ${{ secrets.CLERK_JWKS_URL }}
+          TF_VAR_clerk_issuer: ${{ secrets.CLERK_ISSUER }}
           
       - name: Get Deployment URLs
         id: deploy_outputs

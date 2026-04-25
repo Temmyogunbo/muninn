@@ -11,8 +11,7 @@ echo "📂 Project root: $PROJECT_ROOT"
 
 # 1. Deploy infrastructure and Lambda functions
 echo "📦 Building infrastructure and deploying Lambda functions..."
-# Run from scripts/ so `uv` finds deploy.py and scripts/pyproject.toml (CI runs from repo root)
-cd "$PROJECT_ROOT/scripts" && uv run deploy.py $ENVIRONMENT $PROJECT_NAME
+uv run deploy.py $ENVIRONMENT $PROJECT_NAME
 
 # 2. Final messages
 echo -e "\n✅ Deployment complete!"
