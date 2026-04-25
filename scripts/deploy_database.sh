@@ -18,13 +18,13 @@ AWS_REGION=${DEFAULT_AWS_REGION:-us-east-2}
 
 cd "$TERRAFORM_DIR"
 
-terraform init -input=false \
+terraform init -input=false -reconfigure \
   -backend-config="bucket=muninn-terraform-state-${AWS_ACCOUNT_ID}" \
   -backend-config="key=database/${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
   -backend-config="dynamodb_table=muninn-terraform-locks" \
   -backend-config="encrypt=true"
-  -reconfigure
+  
 
 if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
   terraform workspace new "$ENVIRONMENT"

@@ -20,7 +20,7 @@ echo "🤖 Deploying agents to $ENVIRONMENT..."
 
 cd "$TERRAFORM_DIR"
 
-terraform init -input=false \
+terraform init -input=false -reconfigure \
   -backend-config="bucket=muninn-terraform-state-${AWS_ACCOUNT_ID}" \
   -backend-config="key=agents/${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
@@ -49,7 +49,7 @@ terraform import aws_cloudwatch_log_group.lambda_logs \
 echo "📡 Fetching database outputs from remote state..."
 cd "$DATABASE_TERRAFORM_DIR"
 
-terraform init -input=false \
+terraform init -input=false -reconfigure \
   -backend-config="bucket=muninn-terraform-state-${AWS_ACCOUNT_ID}" \
   -backend-config="key=database/${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
