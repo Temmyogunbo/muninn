@@ -389,7 +389,7 @@ def display_deployment_info(outputs):
 
 def main():
     """Main deployment function."""
-    print("🚀 Alex Financial Advisor - Part 7 Deployment")
+    print("🚀 Campaign Manager - Deployment")
     print("=" * 50)
 
     # Check prerequisites
