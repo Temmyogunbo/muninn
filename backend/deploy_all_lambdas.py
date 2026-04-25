@@ -105,14 +105,19 @@ def taint_and_deploy_via_terraform() -> bool:
     print("🚀 Step 2: Running terraform apply...")
     print("-" * 50)
     
+    if os.getenv("GITHUB_ACTIONS"):
+        apply_cmd = ['terraform', 'apply', '-auto-approve', '-lock-timeout=60s']
+    else:
+        apply_cmd = ['terraform', 'apply', '-auto-approve']
+    
     # Run terraform apply
     result = subprocess.run(
-        ['terraform', 'apply', '-auto-approve'],
+        apply_cmd,
         cwd=terraform_dir,
         capture_output=False,  # Show output directly
         text=True
     )
-    
+
     if result.returncode == 0:
         print()
         print("✅ Terraform deployment completed successfully!")
@@ -235,28 +240,28 @@ def main():
     print()
     
     # Deploy via Terraform with forced recreation
-    if taint_and_deploy_via_terraform():
-        print()
-        print("🎉 All Lambda functions deployed successfully!")
-        print()
-        print("⚠️  IMPORTANT: Lambda functions were FORCE RECREATED")
-        print("   This ensures your latest code is running in AWS")
-        print()
-        print("Next steps:")
-        print("   1. Test locally: cd <service> && uv run test_simple.py")
-        print("   2. Run integration test: cd backend && uv run test_full.py")
-        print("   3. Monitor CloudWatch Logs for each function")
-        sys.exit(0)
-    else:
-        print()
-        print("❌ Deployment failed!")
-        print()
-        print("💡 Troubleshooting tips:")
-        print("   1. Check terraform output for errors")
-        print("   2. Ensure all packages exist (use --package flag)")
-        print("   3. Verify AWS credentials and permissions")
-        print("   4. Check terraform state: cd terraform/6_agents && terraform plan")
-        sys.exit(1)
+    # if taint_and_deploy_via_terraform():
+    #     print()
+    #     print("🎉 All Lambda functions deployed successfully!")
+    #     print()
+    #     print("⚠️  IMPORTANT: Lambda functions were FORCE RECREATED")
+    #     print("   This ensures your latest code is running in AWS")
+    #     print()
+    #     print("Next steps:")
+    #     print("   1. Test locally: cd <service> && uv run test_simple.py")
+    #     print("   2. Run integration test: cd backend && uv run test_full.py")
+    #     print("   3. Monitor CloudWatch Logs for each function")
+    #     sys.exit(0)
+    # else:
+    #     print()
+    #     print("❌ Deployment failed!")
+    #     print()
+    #     print("💡 Troubleshooting tips:")
+    #     print("   1. Check terraform output for errors")
+    #     print("   2. Ensure all packages exist (use --package flag)")
+    #     print("   3. Verify AWS credentials and permissions")
+    #     print("   4. Check terraform state: cd terraform/6_agents && terraform plan")
+    #     sys.exit(1)
 
 if __name__ == "__main__":
     main()

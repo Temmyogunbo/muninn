@@ -98,19 +98,19 @@ def deploy_agents():
     )
 
     # Get terraform outputs
-    print("\n  Getting outputs...")
-    terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
-    if not terraform_dir.exists():
-        print(f"  ❌ Terraform directory not found: {terraform_dir}")
-        sys.exit(1)
+    # print("\n  Getting outputs...")
+    # terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
+    # if not terraform_dir.exists():
+    #     print(f"  ❌ Terraform directory not found: {terraform_dir}")
+    #     sys.exit(1)
 
-    outputs = run_command(
-        ["terraform", "output", "-json"],
-        cwd=terraform_dir,
-        capture_output=True
-    )
+    # outputs = run_command(
+    #     ["terraform", "output", "-json"],
+    #     cwd=terraform_dir,
+    #     capture_output=True
+    # )
 
-    return json.loads(outputs)
+    # return json.loads(outputs)
 
 
 
