@@ -190,6 +190,50 @@ def build_frontend(api_url=None):
 
     print(f"  ✅ Frontend built successfully")
 
+
+def deploy_terraform():
+    """Deploy Frontend infrastructure with Terraform."""
+    print("\n🏗️  Deploying Frontend infrastructure with Terraform...")
+
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "frontend"
+
+    if not terraform_dir.exists():
+        print(f"  ❌ Terraform directory not found: {terraform_dir}")
+        sys.exit(1)
+
+    # Setup Terraform (S3 key must match data.terraform_remote_state in main.tf)
+    setup_terraform(terraform_dir, f"frontend/{environment}/terraform.tfstate")
+
+    # Initialize Terraform if needed
+    if not (terraform_dir / ".terraform").exists():
+        print("  Initializing Terraform...")
+        run_command(["terraform", "init"], cwd=terraform_dir)
+
+    # Plan the deployment
+    print("  Planning deployment...")
+    run_command(["terraform", "plan"], cwd=terraform_dir)
+
+    # Apply the deployment
+    print("\n  Applying deployment...")
+    print("  Creating AWS resources...")
+    aws_reg = os.getenv("DEFAULT_AWS_REGION", "us-east-2")
+    
+    apply_vars = [
+        f"-var=aws_region={aws_reg}",
+        f"-var=environment={environment}",
+    ]
+    run_command(["terraform", "apply", "-auto-approve"] + apply_vars, cwd=terraform_dir)
+
+    # Get outputs
+    print("\n  Getting outputs...")
+    outputs = run_command(
+        ["terraform", "output", "-json"],
+        cwd=terraform_dir,
+        capture_output=True
+    )
+
+    return json.loads(outputs)
+
 def get_terraform_outputs():
     """Get Terraform outputs."""
     terraform_dir = Path(__file__).parent.parent / "terraform" / "frontend"
@@ -345,7 +389,11 @@ def main():
     else:
         os.environ.setdefault("TF_VAR_use_local_stack_state", "true")
 
+    # Package Lambda
+    package_lambda()
 
+    # Deploy frontend + API
+    # outputs = deploy_terraform()
     outputs = get_terraform_outputs()
 
     # Get the API URL from terraform outputs

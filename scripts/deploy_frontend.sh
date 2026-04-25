@@ -30,16 +30,16 @@ terraform init -input=false -reconfigure \
   -backend-config="encrypt=true"
   
 
-if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
-  terraform workspace new "$ENVIRONMENT"
-else
-  terraform workspace select "$ENVIRONMENT"
-fi
+# if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
+#   terraform workspace new "$ENVIRONMENT"
+# else
+#   terraform workspace select "$ENVIRONMENT"
+# fi
 
 if [ "$ENVIRONMENT" = "prod" ]; then
-  TF_APPLY_CMD=(terraform apply -var-file=prod.tfvars -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -auto-approve)
+  TF_APPLY_CMD=(terraform apply -var-file=prod.tfvars -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -var="use_local_stack_state=false" -auto-approve)
 else
-  TF_APPLY_CMD=(terraform apply -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -auto-approve)
+  TF_APPLY_CMD=(terraform apply -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -var="use_local_stack_state=false" -auto-approve)
 fi
 
 echo "🎯 Applying Terraform..."
