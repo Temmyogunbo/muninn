@@ -1,4 +1,4 @@
-name: Deploy Campaign Manager
+name: Deploy Muninn
 
 on:
   push:
@@ -19,84 +19,88 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+
 jobs:
-  deploy:
-    name: Deploy to ${{ github.event.inputs.environment || 'dev' }}
+  deploy-database:
+    name: Deploy Database
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-actions-deploy
           aws-region: ${{ secrets.DEFAULT_AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: Deploy Database
+        run: |
+          chmod +x scripts/deploy_database.sh
+          ./scripts/deploy_database.sh ${{ env.ENVIRONMENT }}
+        env:
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+  deploy-agents:
+    name: Deploy Agents
+    runs-on: ubuntu-latest
+    needs: deploy-database
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions-deploy
+          aws-region: ${{ secrets.DEFAULT_AWS_REGION }}
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_wrapper: false  # Important: disable wrapper to get raw outputs
+          terraform_wrapper: false
+      - name: Deploy Agents
+        run: |
+          chmod +x scripts/deploy_agents.sh
+          ./scripts/deploy_agents.sh ${{ env.ENVIRONMENT }}
+        env:
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: deploy-agents
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions-deploy
+          aws-region: ${{ secrets.DEFAULT_AWS_REGION }}
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Run Deployment Script
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: Deploy Frontend
+        id: deploy
         run: |
-          # Set environment variables for the script
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-          
-          # Make script executable and run it
-          chmod +x scripts/deploy.sh
-          ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
+          chmod +x scripts/deploy_frontend.sh
+          ./scripts/deploy_frontend.sh ${{ env.ENVIRONMENT }}
         env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          # Required by terraform/frontend (Lambda JWT validation). Set in repo or Environment secrets.
-          # Example value: https://<your-clerk-subdomain>.clerk.accounts.dev/.well-known/jwks.json
-          TF_VAR_clerk_jwks_url: ${{ secrets.CLERK_JWKS_URL }}
-          TF_VAR_clerk_issuer: ${{ secrets.CLERK_ISSUER }}
-          
-      - name: Get Deployment URLs
-        id: deploy_outputs
-        working-directory: ./terraform/frontend
-        run: |
-          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> $GITHUB_OUTPUT
-          echo "api_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
-          echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> $GITHUB_OUTPUT
-
-      - name: Invalidate CloudFront
-        run: |
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Origins.Items[?DomainName=='${{ steps.deploy_outputs.outputs.frontend_bucket }}.s3-website-${{ secrets.DEFAULT_AWS_REGION }}.amazonaws.com']].Id | [0]" \
-            --output text)
-          
-          if [ "$DISTRIBUTION_ID" != "None" ] && [ -n "$DISTRIBUTION_ID" ]; then
-            aws cloudfront create-invalidation \
-              --distribution-id $DISTRIBUTION_ID \
-              --paths "/*"
-          fi
-
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
       - name: Deployment Summary
         run: |
           echo "✅ Deployment Complete!"
-          echo "🌐 CloudFront URL: ${{ steps.deploy_outputs.outputs.cloudfront_url }}"
-          echo "📡 API Gateway: ${{ steps.deploy_outputs.outputs.api_url }}"
-          echo "🪣 Frontend Bucket: ${{ steps.deploy_outputs.outputs.frontend_bucket }}"
