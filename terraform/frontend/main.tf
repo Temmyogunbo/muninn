@@ -22,7 +22,7 @@ data "terraform_remote_state" "database_s3" {
   backend = "s3"
   config = {
     bucket         = "muninn-terraform-state-${data.aws_caller_identity.current.account_id}"
-    key            = "database/${var.environment}/terraform.tfstate"
+    key            = "env:/${var.environment}/database/${var.environment}/terraform.tfstate"
     region         = var.aws_region
     dynamodb_table = "muninn-terraform-locks"
   }
@@ -41,7 +41,7 @@ data "terraform_remote_state" "agents_s3" {
   backend = "s3"
   config = {
     bucket         = "muninn-terraform-state-${data.aws_caller_identity.current.account_id}"
-    key            = "agents/${var.environment}/terraform.tfstate"
+    key            = "env:/${var.environment}/agents/${var.environment}/terraform.tfstate"
     region         = var.aws_region
     dynamodb_table = "muninn-terraform-locks"
   }
