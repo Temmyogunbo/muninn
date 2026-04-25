@@ -220,6 +220,7 @@ def main():
         failed_packages = []
         
         for service_name, service_dir in services_to_package:
+            print(f"   📦 Packaging {service_name}...")
             if not package_lambda(service_name, service_dir):
                 failed_packages.append(service_name)
         

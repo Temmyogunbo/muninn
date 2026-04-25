@@ -62,6 +62,7 @@ def package_lambda():
         docker_cmd = [
             "docker", "run", "--rm",
             "--platform", "linux/amd64",
+            "--user", f"{os.getuid()}:{os.getgid()}", 
             "-v", f"{temp_path}:/build",
             "-v", f"{backend_dir}/database:/database",
             "--entrypoint", "/bin/bash",
