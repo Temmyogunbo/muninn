@@ -19,4 +19,6 @@ members = [
     "api",
     "reporter",
 ]
+
+[tool.uv.sources]
 muninn-database = { workspace = true }
