@@ -234,6 +234,19 @@ def deploy_terraform():
 
     return json.loads(outputs)
 
+def get_terraform_outputs():
+    """Get Terraform outputs."""
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "frontend"
+    # Get outputs
+    print("\n  Getting outputs...")
+    outputs = run_command(
+        ["terraform", "output", "-json"],
+        cwd=terraform_dir,
+        capture_output=True
+    )
+
+    return json.loads(outputs)
+
 
 def upload_frontend(bucket_name, cloudfront_id):
     """Upload frontend files to S3."""
@@ -380,7 +393,8 @@ def main():
     package_lambda()
 
     # Deploy frontend + API
-    outputs = deploy_terraform()
+    # outputs = deploy_terraform()
+    outputs = get_terraform_outputs()
 
     # Get the API URL from terraform outputs
     api_url = outputs["api_gateway_url"]["value"]

@@ -14,12 +14,9 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Data sources
 data "aws_caller_identity" "current" {}
-
 data "aws_region" "current" {}
 
-# Read database and agents state: S3 in CI (see scripts/deploy.py keys) or local paths for dev machines.
 data "terraform_remote_state" "database_s3" {
   count   = var.use_local_stack_state ? 0 : 1
   backend = "s3"
@@ -64,17 +61,24 @@ locals {
 }
 
 locals {
-  name_prefix = "muninn"
+  name_prefix = "muninn-${var.environment}"  # was: "muninn" — environment now baked in here,
+                                              # so every resource using name_prefix gets it for free
 
   common_tags = {
-    Project   = "muninn"
-    Part      = "frontend"
-    ManagedBy = "terraform"
+    Project     = "muninn"
+    Part        = "frontend"
+    ManagedBy   = "terraform"
+    Environment = var.environment             # added
   }
 }
 
-# S3 bucket for frontend static website
+# ========================================
+# S3 Frontend Bucket
+# ========================================
+
 resource "aws_s3_bucket" "frontend" {
+  # was: muninn-frontend-<account>
+  # now: muninn-<env>-frontend-<account>
   bucket = "${local.name_prefix}-frontend-${data.aws_caller_identity.current.account_id}"
   tags   = local.common_tags
 }
@@ -112,41 +116,42 @@ resource "aws_s3_bucket_policy" "frontend" {
         Principal = "*"
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.frontend.arn}/*"
-      },
+      }
     ]
   })
 
   depends_on = [aws_s3_bucket_public_access_block.frontend]
 }
 
-# IAM role for Lambda API function
+# ========================================
+# IAM Role & Policies for API Lambda
+# ========================================
+
 resource "aws_iam_role" "api_lambda_role" {
-  name = "${local.name_prefix}-api-lambda-role"
+  name = "${local.name_prefix}-api-lambda-role"  # was: muninn-api-lambda-role
   tags = local.common_tags
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
         Principal = {
           Service = "lambda.amazonaws.com"
         }
-      },
+      }
     ]
   })
 }
 
-# Attach basic Lambda execution policy
 resource "aws_iam_role_policy_attachment" "api_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
   role       = aws_iam_role.api_lambda_role.name
 }
 
-# Policy for Aurora Data API access
 resource "aws_iam_role_policy" "api_lambda_aurora" {
-  name = "${local.name_prefix}-api-lambda-aurora"
+  name = "${local.name_prefix}-api-lambda-aurora"  # was: muninn-api-lambda-aurora
   role = aws_iam_role.api_lambda_role.id
 
   policy = jsonencode({
@@ -164,19 +169,16 @@ resource "aws_iam_role_policy" "api_lambda_aurora" {
         Resource = local.database_state.outputs.aurora_cluster_arn
       },
       {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = local.database_state.outputs.aurora_secret_arn
       }
     ]
   })
 }
 
-# Policy for SQS access
 resource "aws_iam_role_policy" "api_lambda_sqs" {
-  name = "${local.name_prefix}-api-lambda-sqs"
+  name = "${local.name_prefix}-api-lambda-sqs"  # was: muninn-api-lambda-sqs
   role = aws_iam_role.api_lambda_role.id
 
   policy = jsonencode({
@@ -194,9 +196,8 @@ resource "aws_iam_role_policy" "api_lambda_sqs" {
   })
 }
 
-# Policy for Lambda invoke (for testing agents directly)
 resource "aws_iam_role_policy" "api_lambda_invoke" {
-  name = "${local.name_prefix}-api-lambda-invoke"
+  name = "${local.name_prefix}-api-lambda-invoke"  # was: muninn-api-lambda-invoke
   role = aws_iam_role.api_lambda_role.id
 
   policy = jsonencode({
@@ -206,17 +207,22 @@ resource "aws_iam_role_policy" "api_lambda_invoke" {
         Effect = "Allow"
         Action = "lambda:InvokeFunction"
         Resource = [
-          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:muninn-reporter"
+          # was: hardcoded "muninn-reporter"
+          # now: references the environment-aware name from agents state
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:muninn-reporter-${var.environment}"
         ]
       }
     ]
   })
 }
 
-# Lambda function for API
+# ========================================
+# API Lambda Function
+# ========================================
+
 resource "aws_lambda_function" "api" {
   filename         = "${path.module}/../../backend/api/api_lambda.zip"
-  function_name    = "${local.name_prefix}-api"
+  function_name    = "${local.name_prefix}-api"  # was: muninn-api
   role             = aws_iam_role.api_lambda_role.arn
   handler          = "lambda_handler.handler"
   source_code_hash = filebase64sha256("${path.module}/../../backend/api/api_lambda.zip")
@@ -228,25 +234,18 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      # Database configuration from Database part
       AURORA_CLUSTER_ARN = local.database_state.outputs.aurora_cluster_arn
       AURORA_SECRET_ARN  = local.database_state.outputs.aurora_secret_arn
       AURORA_DATABASE    = local.database_state.outputs.database_name
       DEFAULT_AWS_REGION = var.aws_region
-
-      # SQS configuration from agent infrastructure layer
-      SQS_QUEUE_URL = local.agents_state.outputs.sqs_queue_url
-
-      # Clerk configuration for JWT validation
-      CLERK_JWKS_URL = var.clerk_jwks_url
-      CLERK_ISSUER   = var.clerk_issuer
-
-      # CORS configuration
-      CORS_ORIGINS = "http://localhost:3000,https://${aws_cloudfront_distribution.main.domain_name}"
+      SQS_QUEUE_URL      = local.agents_state.outputs.sqs_queue_url
+      CLERK_JWKS_URL     = var.clerk_jwks_url
+      CLERK_ISSUER       = var.clerk_issuer
+      ENVIRONMENT        = var.environment  # added
+      CORS_ORIGINS       = "http://localhost:3000,https://${aws_cloudfront_distribution.main.domain_name}"
     }
   }
 
-  # Ensure Lambda waits for dependencies including CloudFront
   depends_on = [
     aws_iam_role_policy.api_lambda_aurora,
     aws_iam_role_policy.api_lambda_sqs,
@@ -255,22 +254,30 @@ resource "aws_lambda_function" "api" {
   ]
 }
 
-# API Gateway HTTP API
+# CloudWatch Log Group for API Lambda
+resource "aws_cloudwatch_log_group" "api_lambda_logs" {
+  name              = "/aws/lambda/${local.name_prefix}-api"  # was: not explicit — now: /aws/lambda/muninn-<env>-api
+  retention_in_days = 7
+  tags              = local.common_tags
+}
+
+# ========================================
+# API Gateway
+# ========================================
+
 resource "aws_apigatewayv2_api" "main" {
-  name          = "${local.name_prefix}-api-gateway"
+  name          = "${local.name_prefix}-api-gateway"  # was: muninn-api-gateway
   protocol_type = "HTTP"
   tags          = local.common_tags
 
   cors_configuration {
-    allow_credentials = false # Cannot be true when allow_origins is "*"
+    allow_credentials = false
     allow_headers     = ["authorization", "content-type", "x-amz-date", "x-api-key", "x-amz-security-token"]
     allow_methods     = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    allow_origins     = ["*"] # CORS is handled in Lambda via environment variables
+    allow_origins     = ["*"]
     max_age           = 300
   }
 }
-
-# No JWT authorizer needed - authentication is handled in Lambda like in the saas reference
 
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.main.id
@@ -290,23 +297,18 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_uri  = aws_lambda_function.api.invoke_arn
 }
 
-# API Gateway Routes - all routes under /api/*
 resource "aws_apigatewayv2_route" "api_any" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "ANY /api/{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-
-  # No authorization at API Gateway level - handled in Lambda
 }
 
-# OPTIONS route for CORS preflight (no auth needed)
 resource "aws_apigatewayv2_route" "api_options" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "OPTIONS /api/{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-# Lambda permission for API Gateway
 resource "aws_lambda_permission" "api_gw" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -315,15 +317,17 @@ resource "aws_lambda_permission" "api_gw" {
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }
 
-# CloudFront distribution
+# ========================================
+# CloudFront Distribution
+# ========================================
+
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   tags                = local.common_tags
-  comment             = "Program Frontend"
+  comment             = "Muninn Frontend - ${var.environment}"  # was: "Program Frontend"
 
-  # S3 origin for frontend
   origin {
     domain_name = aws_s3_bucket_website_configuration.frontend.website_endpoint
     origin_id   = "S3-${aws_s3_bucket.frontend.id}"
@@ -336,7 +340,6 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # API Gateway origin for /api/* paths
   origin {
     domain_name = replace(aws_apigatewayv2_api.main.api_endpoint, "https://", "")
     origin_id   = "API-Gateway"
@@ -349,7 +352,6 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Default behavior for static content (S3)
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
@@ -368,7 +370,6 @@ resource "aws_cloudfront_distribution" "main" {
     max_ttl                = 86400
   }
 
-  # Behavior for API calls (/api/*)
   ordered_cache_behavior {
     path_pattern     = "/api/*"
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
@@ -389,7 +390,6 @@ resource "aws_cloudfront_distribution" "main" {
     max_ttl                = 0
   }
 
-  # Custom error pages for SPA routing
   custom_error_response {
     error_code         = 404
     response_code      = 200
@@ -412,4 +412,3 @@ resource "aws_cloudfront_distribution" "main" {
     cloudfront_default_certificate = true
   }
 }
-
