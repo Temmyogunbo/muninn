@@ -166,7 +166,15 @@ def deploy_agents_terraform():
         apply_vars.append(f"-var=langfuse_secret_key={lfs}")
     if lfh:
         apply_vars.append(f"-var=langfuse_host={lfh}")
-
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Agents directory: {agents_dir}")
+    print(f"Database directory: {database_dir}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Agents directory: {agents_dir}")
+    print(f"Database directory: {database_dir}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Agents directory: {agents_dir}")
+    print(f"Database directory: {database_dir}")
     run_command(["terraform", "plan"] + apply_vars, cwd=agents_dir)
     run_command(["terraform", "apply", "-auto-approve"] + apply_vars, cwd=agents_dir)
 
@@ -192,27 +200,6 @@ def package_lambda():
 
     size_mb = lambda_zip.stat().st_size / (1024 * 1024)
     print(f"  ✅ Lambda package created: {lambda_zip} ({size_mb:.2f} MB)")
-
-
-def package_reporter_lambda():
-    """Package the reporter agent Lambda (required before terraform/agents apply)."""
-    print("\n📦 Packaging reporter Lambda function...")
-
-    reporter_dir = Path(__file__).parent.parent / "backend" / "reporter"
-
-    if not reporter_dir.exists():
-        print(f"  ❌ Reporter directory not found: {reporter_dir}")
-        sys.exit(1)
-
-    run_command(["uv", "run", "package_docker.py"], cwd=reporter_dir)
-
-    lambda_zip = reporter_dir / "reporter_lambda.zip"
-    if not lambda_zip.exists():
-        print(f"  ❌ Reporter Lambda package not created: {lambda_zip}")
-        sys.exit(1)
-
-    size_mb = lambda_zip.stat().st_size / (1024 * 1024)
-    print(f"  ✅ Reporter Lambda package created: {lambda_zip} ({size_mb:.2f} MB)")
 
 
 def deploy_agents():
@@ -500,12 +487,13 @@ def main():
     else:
         os.environ.setdefault("TF_VAR_use_local_stack_state", "true")
 
-    # Package Lambdas (API for frontend stack; reporter zip for terraform/agents)
+    # Package Lambda
     package_lambda()
-    package_reporter_lambda()
 
     # Database and agents must be applied first so the frontend can read their outputs
     deploy_database_terraform()
+
+    deploy_agents()
     deploy_agents_terraform()
 
     # Deploy frontend + API
