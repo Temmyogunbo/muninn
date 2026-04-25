@@ -27,6 +27,10 @@ jobs:
     name: Deploy Database
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
+    outputs:
+      aurora_cluster_arn: ${{ steps.deploy.outputs.aurora_cluster_arn }}
+      aurora_secret_arn: ${{ steps.deploy.outputs.aurora_secret_arn }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -61,6 +65,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Deploy Database
+        id: deploy
         run: |
           chmod +x scripts/deploy_database.sh
           ./scripts/deploy_database.sh ${{ env.ENVIRONMENT }}
@@ -69,6 +74,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
           BEDROCK_REGION: ${{ secrets.BEDROCK_REGION }}
+          AURORA_CLUSTER_ARN: ${{ needs.deploy-database.outputs.aurora_cluster_arn }}
+          AURORA_SECRET_ARN: ${{ needs.deploy-database.outputs.aurora_secret_arn }}
 
   deploy-agents:
     name: Deploy Agents
