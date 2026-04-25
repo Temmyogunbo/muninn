@@ -24,6 +24,7 @@ terraform init -input=false \
   -backend-config="region=${AWS_REGION}" \
   -backend-config="dynamodb_table=muninn-terraform-locks" \
   -backend-config="encrypt=true"
+  -reconfigure
 
 if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
   terraform workspace new "$ENVIRONMENT"
