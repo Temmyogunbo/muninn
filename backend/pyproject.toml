@@ -19,3 +19,4 @@ members = [
     "api",
     "reporter",
 ]
+muninn-database = { workspace = true }
