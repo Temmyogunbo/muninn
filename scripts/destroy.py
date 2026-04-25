@@ -32,7 +32,7 @@ def run_command(cmd, cwd=None, check=True, capture_output=False):
 
 def confirm_destruction():
     """Ask for confirmation before destroying resources."""
-    print("⚠️  WARNING: This will destroy all Part 7 infrastructure!")
+    print("⚠️  WARNING: This will destroy all infrastructure!")
     print("This includes:")
     print("  - CloudFront distribution")
     print("  - API Gateway")
@@ -45,9 +45,9 @@ def confirm_destruction():
     return response.lower() == 'yes'
 
 
-def get_bucket_name():
+def get_bucket_name(directory):
     """Get the S3 bucket name from Terraform output."""
-    terraform_dir = Path(__file__).parent.parent / "terraform" / "7_frontend"
+    terraform_dir = Path(__file__).parent.parent / "terraform" / directory
 
     if not terraform_dir.exists():
         print(f"  ❌ Terraform directory not found: {terraform_dir}")
@@ -101,11 +101,11 @@ def empty_s3_bucket(bucket_name):
     print(f"  ✅ Bucket {bucket_name} emptied")
 
 
-def destroy_terraform():
+def destroy_frontend_terraform():
     """Destroy infrastructure with Terraform."""
     print("\n🏗️  Destroying infrastructure with Terraform...")
 
-    terraform_dir = Path(__file__).parent.parent / "terraform" / "7_frontend"
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "frontend"
 
     if not terraform_dir.exists():
         print(f"  ❌ Terraform directory not found: {terraform_dir}")
@@ -130,13 +130,70 @@ def destroy_terraform():
 
     return success
 
+def destroy_agents_terraform():
+    """Destroy Agents Infrastructure with Terraform."""
+    print("\n🏗️  Destroying Agents Infrastructure with Terraform...")
 
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
+
+    if not terraform_dir.exists():
+        print(f"  ❌ Agents Terraform directory not found: {terraform_dir}")
+        return False
+
+    # Check if Terraform is initialized
+    if not (terraform_dir / ".terraform").exists():
+        print("  ⚠️  Agents Terraform not initialized, nothing to destroy")
+        return True
+
+    # Destroy the infrastructure
+    print("  Running Agents Terraform destroy...")
+    print("  Type 'yes' when prompted to confirm destruction.")
+
+    success = run_command(["terraform", "destroy"], cwd=terraform_dir)
+
+    if success:
+        print("  ✅ Agents Infrastructure destroyed successfully")
+    else:
+        print("  ❌ Failed to destroy Agents Infrastructure")
+        print("  You may need to manually clean up resources in AWS Console")
+
+    return success
+
+def destroy_database_terraform():
+    """Destroy infrastructure with Terraform."""
+    print("\n🏗️  Destroying Database Infrastructure with Terraform...")
+
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "database"
+
+    if not terraform_dir.exists():
+        print(f"  ❌ Database Terraform directory not found: {terraform_dir}")
+        return False
+
+    # Check if Terraform is initialized
+    if not (terraform_dir / ".terraform").exists():
+        print("  ⚠️  Database Terraform not initialized, nothing to destroy")
+        return True
+
+    # Destroy the infrastructure
+    print("  Running Database Terraform destroy...")
+    print("  Type 'yes' when prompted to confirm destruction.")
+
+    success = run_command(["terraform", "destroy"], cwd=terraform_dir)
+
+    if success:
+        print("  ✅ Database Infrastructure destroyed successfully")
+    else:
+        print("  ❌ Failed to destroy Database Infrastructure")
+        print("  You may need to manually clean up resources in AWS Console")
+
+    return success
 def clean_local_artifacts():
     """Clean up local build artifacts."""
     print("\n🧹 Cleaning up local artifacts...")
 
     artifacts = [
         Path(__file__).parent.parent / "backend" / "api" / "api_lambda.zip",
+        Path(__file__).parent.parent / "backend" / "reporter" / "reporter_lambda.zip",
         Path(__file__).parent.parent / "frontend" / "out",
         Path(__file__).parent.parent / "frontend" / ".next",
     ]
@@ -158,21 +215,23 @@ def main():
     """Main destruction function."""
     print("💥 Alex Financial Advisor - Part 7 Infrastructure Destruction")
     print("=" * 60)
-
+    
     # Confirm destruction
     if not confirm_destruction():
         print("\n❌ Destruction cancelled")
         sys.exit(0)
 
-    # Get bucket name before destroying infrastructure
-    bucket_name = get_bucket_name()
-
-    # Empty S3 bucket first (required before Terraform can delete it)
-    if bucket_name:
-        empty_s3_bucket(bucket_name)
+    services = ["frontend", "agents", "database"]
+    for service in services:
+         # Get bucket name before destroying infrastructure
+        bucket_name = get_bucket_name(service)
+        if bucket_name:
+           empty_s3_bucket(bucket_name)
 
     # Destroy Terraform infrastructure
-    destroy_terraform()
+    destroy_frontend_terraform()
+    destroy_agents_terraform()
+    destroy_database_terraform()
 
     # Clean local artifacts
     clean_local_artifacts()

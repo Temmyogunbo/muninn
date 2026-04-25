@@ -96,6 +96,34 @@ def package_lambda():
     print(f"  ✅ Lambda package created: {lambda_zip} ({size_mb:.2f} MB)")
 
 
+def deploy_agents():
+    """Deploy the agents using Terraform."""
+    print("\n📦 Running deploy_all_lambdas.py...")
+
+    backend_dir = Path(__file__).parent.parent / "backend"
+
+    if not backend_dir.exists():
+        print(f"  ❌ Backend directory not found: {backend_dir}")
+        sys.exit(1)
+
+    # Run the deployment script
+    run_command(["uv", "run", "deploy_all_lambdas.py"], cwd=backend_dir)
+
+    # Get terraform outputs
+    print("\n  Getting outputs...")
+    terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
+    if not terraform_dir.exists():
+        print(f"  ❌ Terraform directory not found: {terraform_dir}")
+        sys.exit(1)
+
+    outputs = run_command(
+        ["terraform", "output", "-json"],
+        cwd=terraform_dir,
+        capture_output=True
+    )
+
+    return json.loads(outputs)
+
 def build_frontend(api_url=None):
     """Build the NextJS frontend."""
     print("\n🎨 Building frontend...")
@@ -385,6 +413,9 @@ def main():
     print(f"\n📊 Monitor your Lambda function at:")
     print(f"   AWS Console > Lambda > {outputs['lambda_function_name']['value']}")
     print("\n⏳ Note: CloudFront distribution may take 5-10 minutes to fully propagate")
+
+    # Deploy agents
+    deploy_agents()
 
 
 if __name__ == "__main__":
