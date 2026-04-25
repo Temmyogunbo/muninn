@@ -4,39 +4,38 @@ set -e
 ENVIRONMENT=${1:-dev}
 PROJECT_NAME=${2:-muninn}
 
+echo "Building database..."
+
+# Anchor everything to project root from the start
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TERRAFORM_DIR="$PROJECT_ROOT/terraform/database"
 
 echo "🚀 Deploying ${PROJECT_NAME} to ${ENVIRONMENT}..."
 echo "📂 Project root: $PROJECT_ROOT"
 
-echo "📦 Building infrastructure and deploying Lambda functions..."
-uv run $PROJECT_ROOT/scripts/deploy-database.py $ENVIRONMENT $PROJECT_NAME
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=${DEFAULT_AWS_REGION:-us-east-2}
 
-echo "Capturing database outputs..."
-
-# Must run terraform output FROM the terraform/database directory
 cd "$TERRAFORM_DIR"
 
-AURORA_CLUSTER_ARN=$(terraform output -raw aurora_cluster_arn 2>/dev/null)
-AURORA_SECRET_ARN=$(terraform output -raw aurora_secret_arn 2>/dev/null)
+terraform init -input=false \
+  -backend-config="bucket=muninn-terraform-state-${AWS_ACCOUNT_ID}" \
+  -backend-config="key=database/${ENVIRONMENT}/terraform.tfstate" \
+  -backend-config="region=${AWS_REGION}" \
+  -backend-config="dynamodb_table=muninn-terraform-locks" \
+  -backend-config="encrypt=true"
 
-# Validate outputs before writing to GITHUB_OUTPUT
-if [ -z "$AURORA_CLUSTER_ARN" ]; then
-  echo "❌ Failed to capture aurora_cluster_arn from terraform output"
-  exit 1
+if ! terraform workspace list | grep -q "$ENVIRONMENT"; then
+  terraform workspace new "$ENVIRONMENT"
+else
+  terraform workspace select "$ENVIRONMENT"
 fi
 
-if [ -z "$AURORA_SECRET_ARN" ]; then
-  echo "❌ Failed to capture aurora_secret_arn from terraform output"
-  exit 1
+if [ "$ENVIRONMENT" = "prod" ]; then
+  TF_APPLY_CMD=(terraform apply -var-file=prod.tfvars -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -auto-approve)
+else
+  TF_APPLY_CMD=(terraform apply -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -auto-approve)
 fi
 
-echo "  ✅ Aurora Cluster ARN: $AURORA_CLUSTER_ARN"
-echo "  ✅ Aurora Secret ARN:  $AURORA_SECRET_ARN"
-
-# Write to GitHub Actions job output
-echo "aurora_cluster_arn=${AURORA_CLUSTER_ARN}" >> $GITHUB_OUTPUT
-echo "aurora_secret_arn=${AURORA_SECRET_ARN}" >> $GITHUB_OUTPUT
-
-echo -e "\n✅ Deployment complete!"
+echo "🎯 Applying Terraform..."
+"${TF_APPLY_CMD[@]}"

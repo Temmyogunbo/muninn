@@ -25,7 +25,8 @@ terraform init -input=false \
   -backend-config="key=agents/${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
   -backend-config="dynamodb_table=muninn-terraform-locks" \
-  -backend-config="encrypt=true"
+  -backend-config="encrypt=true" \
+
 
 terraform workspace select "$ENVIRONMENT" || terraform workspace new "$ENVIRONMENT"
 
@@ -77,7 +78,7 @@ terraform apply -auto-approve \
   -var="aurora_cluster_arn=${AURORA_CLUSTER_ARN}" \
   -var="aurora_secret_arn=${AURORA_SECRET_ARN}" \
   -var="bedrock_model_id=${BEDROCK_MODEL_ID:-anthropic.claude-3-5-sonnet-20241022-v2:0}" \
-  -var="bedrock_region=${BEDROCK_REGION:-us-east-1}" \
+  -var="bedrock_region=${BEDROCK_REGION:-us-east-2}" \
   -var="openai_api_key=${OPENAI_API_KEY}"
 
 echo "✅ Agents deployed!"
