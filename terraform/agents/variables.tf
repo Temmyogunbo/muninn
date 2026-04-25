@@ -52,3 +52,18 @@ variable "openai_api_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "environment" {
+  description = "Deployment environment (dev, test, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "project_name" {
+  description = "Name prefix for all resources"
+  type        = string
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.project_name))
+    error_message = "Project name must contain only lowercase letters, numbers, and hyphens."
+  }
+}
