@@ -23,13 +23,13 @@ export default function Home() {
       <div className="mx-auto max-w-2xl space-y-8">
         <div className={card}>
           <p className="text-xs font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Camp & learning programs
+            Camp Program Manager
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-white">
             Muninn
           </h1>
           <p className="mt-3 max-w-prose text-lg text-slate-600 dark:text-slate-300">
-            Manage programs, courses, student&rsquo;s profiles, and enrollments in one place.
+            Manage camp programs, courses, student&rsquo;s profiles, and enrollments in one place.
           </p>
 
           {isLoaded && userLoaded && isSignedIn && (
@@ -38,7 +38,7 @@ export default function Home() {
                 href="/programs"
                 className={btn + " bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"}
               >
-                View programs
+                View camp programs
               </Link>
             </div>
         )}

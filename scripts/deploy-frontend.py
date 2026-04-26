@@ -160,6 +160,7 @@ def build_frontend(api_url=None):
 
         # Update the API URL
         api_line_found = False
+        print(f"Lines: {lines}")
         for i, line in enumerate(lines):
             if line.startswith("NEXT_PUBLIC_API_URL="):
                 lines[i] = f"NEXT_PUBLIC_API_URL={api_url}\n"
@@ -350,6 +351,7 @@ def main():
 
     # Get the API URL from terraform outputs
     api_url = outputs["api_gateway_url"]["value"]
+    print(f"API URL: {api_url}")
 
     # Build frontend with the production API URL
     build_frontend(api_url)
