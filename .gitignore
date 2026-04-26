@@ -15,7 +15,6 @@ lambda-package/
 
 # Environment files
 .env
-.env.*
 !.env.example
 
 # Node
