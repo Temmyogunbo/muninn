@@ -15,8 +15,28 @@ from context import ProgramDataContext
 logger = logging.getLogger(__name__)
 
 
+def _strip_header_unsafe_chars(value: str) -> str:
+    """
+    Remove CR/LF/NUL from strings that may become HTTP headers or auth material.
+    Lambda/env secrets and DB fields sometimes include trailing newlines, which trigger:
+    ValueError: Invalid header value (http.client.putheader).
+    """
+    if not value:
+        return ""
+    return value.replace("\r", "").replace("\n", "").replace("\x00", "").strip()
+
+
+def _safe_subject(subject: str, max_len: int = 200) -> str:
+    """Single-line subject; newlines from program names become spaces."""
+    s = (subject or "").replace("\r", " ").replace("\n", " ")
+    s = " ".join(s.split()).strip()
+    if len(s) > max_len:
+        s = s[: max_len - 3] + "..."
+    return s
+
+
 def _sendgrid_client() -> sendgrid.SendGridAPIClient:
-    api_key = os.environ.get("SENDGRID_API_KEY")
+    api_key = _strip_header_unsafe_chars(os.environ.get("SENDGRID_API_KEY", ""))
     if not api_key:
         raise RuntimeError("SENDGRID_API_KEY is not set")
     return sendgrid.SendGridAPIClient(api_key=api_key)
@@ -30,7 +50,7 @@ async def send_program_report_email_internal(
     parent_email: str,
 ) -> dict[str, Any]:
     """Send an HTML email via SendGrid. parent_email must be supplied by the caller (no DB lookup)."""
-    to_addr = (parent_email or "").strip()
+    to_addr = _strip_header_unsafe_chars(parent_email or "")
     if not to_addr:
         return {"ok": False, "error": "parent_email is required and cannot be empty"}
 
@@ -38,7 +58,7 @@ async def send_program_report_email_internal(
     if not from_email:
         raise RuntimeError("SENDGRID_FROM_EMAIL is not set")
 
-    subject_clean = (subject or "").strip()
+    subject_clean = _safe_subject(subject)
     html_clean = (html_body or "").strip()
     if not subject_clean:
         return {"ok": False, "error": "Subject is required"}
