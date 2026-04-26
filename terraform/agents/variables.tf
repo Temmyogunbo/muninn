@@ -16,6 +16,7 @@ variable "aurora_secret_arn" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID to use for agents"
   type        = string
+  default    = "us-east-2"
 }
 
 variable "bedrock_region" {
