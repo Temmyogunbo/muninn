@@ -104,7 +104,7 @@ export function ReportViewModal({ open, jobId, isLoading, error, markdown, onClo
       >
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4">
           <h2 id="report-view-title" className="text-lg font-semibold text-gray-900">
-            {shortId ? `Report — ${shortId}` : "Report"}
+            {shortId ? `AI Generated Report — ${shortId}` : "AI Generated Report"}
           </h2>
           <button
             type="button"

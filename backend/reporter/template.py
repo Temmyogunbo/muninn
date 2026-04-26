@@ -95,12 +95,12 @@ Learn the basics of programming with JavaScript. Over two weeks, campers explore
 
 ## Learning Outcomes
 
-| Outcome | Status |
+| Outcome 
 |---|---|
-| Build simple interactive programs independently | ✅ Achieved |
-| Explain core programming concepts in their own words | ✅ Achieved |
-| Collaborate effectively to complete group challenges | ✅ Achieved |
-| Present a final project demonstrating applied learning | ✅ Achieved |
+| Build simple interactive programs independently 
+| Explain core programming concepts in their own words 
+| Collaborate effectively to complete group challenges 
+| Present a final project demonstrating applied learning 
 
 ---
 

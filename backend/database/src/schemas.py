@@ -49,7 +49,7 @@ class StudentCreate(BaseModel):
     student_name: str = Field(description="Name of the student")
     date_of_birth: date = Field(description="Date of birth of the student")
     gender: Literal["male", "female", "other"] = Field(description="Gender of the student")
-    parent_id: str = Field(description="ID of the parent")
+    parent_id: UUID = Field(description="ID of the parent (user row, UUID)")
 
 
 class CourseCreate(BaseModel):

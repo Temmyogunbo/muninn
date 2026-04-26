@@ -78,6 +78,20 @@ class Users(BaseModel):
         data = user.model_dump()
         return self.db.insert(self.table_name, data, returning="id")
 
+    def find_by_role(self, role: str, limit: int = 500) -> List[Dict]:
+        """Users with the given role (e.g. parent for admin pickers)."""
+        sql = f"""
+            SELECT * FROM {self.table_name}
+            WHERE role = :role
+            ORDER BY display_name
+            LIMIT :limit
+        """
+        params = [
+            {"name": "role", "value": {"stringValue": role}},
+            {"name": "limit", "value": {"longValue": limit}},
+        ]
+        return self.db.query(sql, params)
+
 
 class Students(BaseModel):
     """students table"""

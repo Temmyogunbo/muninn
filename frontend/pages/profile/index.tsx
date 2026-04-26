@@ -1,9 +1,11 @@
+import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useMuninnApi } from "@/hooks/useMuninnApi";
 import type { UserRow } from "@/lib/types";
 
 export default function ProfilePage() {
+  const { query } = useRouter();
   const api = useMuninnApi();
   const [user, setUser] = useState<UserRow | null>(null);
   const [createdHint, setCreatedHint] = useState(false);
@@ -13,7 +15,6 @@ export default function ProfilePage() {
     display_name: "",
     email: "",
     phone: "",
-    role: "parent",
   });
 
   const load = useCallback(() => {
@@ -27,7 +28,6 @@ export default function ProfilePage() {
           display_name: res.user.display_name,
           email: res.user.email,
           phone: res.user.phone,
-          role: res.user.role,
         });
       })
       .catch((e: Error) => setError(e.message));
@@ -56,11 +56,27 @@ export default function ProfilePage() {
     }
   }
 
+  const roleLabel: Record<UserRow["role"], string> = {
+    admin: "Administrator",
+    parent: "Parent",
+    instructor: "Instructor",
+  };
+
+  const title = user?.role === "admin" ? "Administrator profile" : "Your profile";
+  const showRestricted = query.restricted === "1";
+
   return (
-    <AppLayout title="Parent profile">
+    <AppLayout title={title}>
       {error && (
         <p className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
           {error}
+        </p>
+      )}
+
+      {showRestricted && user && user.role !== "admin" && (
+        <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          The Muninn dashboard and API are available to organization administrators. Your account is{" "}
+          {user.role}. You can still update your profile here.
         </p>
       )}
 
@@ -75,6 +91,14 @@ export default function ProfilePage() {
       {user && (
         <form onSubmit={onSubmit} className="max-w-md space-y-3">
           <p className="text-xs text-zinc-500">User id: {user.id}</p>
+          <div className="text-sm">
+            <span className="text-zinc-600 dark:text-zinc-400">Role</span>
+            <p className="mt-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+              {roleLabel[user.role]}{" "}
+              <span className="text-xs font-normal text-zinc-500">({user.role})</span>
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">Roles are assigned by the system. Contact an admin to change this.</p>
+          </div>
           <label className="block text-sm">
             <span className="text-zinc-600 dark:text-zinc-400">Name</span>
             <input

@@ -19,18 +19,21 @@ export default function ProgramDetailPage() {
   const load = useCallback(() => {
     if (!id) return;
     setError(null);
-    void api
-      .getUserMe()
-      .then(() =>
-        Promise.all([api.getProgram(id), api.listCourses(), api.listStudents(), api.listProgramEnrollments(id)]),
-      )
+    void Promise.all([
+      api.getProgram(id),
+      api.listCourses(),
+      api.listStudents(),
+      api.listProgramEnrollments(id),
+    ])
       .then(([p, c, s, e]) => {
         setProgram(p);
         setCourses(c);
         setStudents(s);
         setEnrollments(e);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => {
+        setError(e.message);
+      });
   }, [api, id]);
 
   useEffect(() => {

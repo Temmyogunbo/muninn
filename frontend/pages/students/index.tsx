@@ -9,18 +9,21 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<StudentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [parents, setParents] = useState<{ id: string; display_name: string }[] | null>(null);
   const [form, setForm] = useState({
     student_name: "",
     date_of_birth: "",
     gender: "other" as Gender,
+    parent_id: "",
   });
 
   const load = useCallback(() => {
     setError(null);
-    void api
-      .getUserMe()
-      .then(() => api.listStudents())
-      .then(setStudents)
+    void Promise.all([api.listParents(), api.listStudents()])
+      .then(([p, s]) => {
+        setParents(p.map((u) => ({ id: u.id, display_name: u.display_name })));
+        setStudents(s);
+      })
       .catch((e: Error) => setError(e.message));
   }, [api]);
 
@@ -37,8 +40,9 @@ export default function StudentsPage() {
         student_name: form.student_name,
         date_of_birth: form.date_of_birth,
         gender: form.gender,
+        parent_id: form.parent_id,
       });
-      setForm({ student_name: "", date_of_birth: "", gender: "other" });
+      setForm({ student_name: "", date_of_birth: "", gender: "other", parent_id: form.parent_id });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create student");
@@ -50,11 +54,11 @@ export default function StudentsPage() {
   return (
     <AppLayout title="Students">
       <p className="mb-6 text-sm text-zinc-500">
-        Students are linked to your parent profile. If you have not set up a profile, visit{" "}
-        <Link className="underline" href="/profile">
-          Profile
+        Add a child under a <strong>parent</strong> account. Create parent users on the{" "}
+        <Link className="underline" href="/admin/parents">
+          Parents
         </Link>{" "}
-        or sign in; the first API access may create a default parent record.
+        page, then select them here.
       </p>
 
       {error && (
@@ -66,6 +70,27 @@ export default function StudentsPage() {
       <div className="mb-10 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="mb-3 text-sm font-medium text-zinc-500">Add a student</h2>
         <form onSubmit={onSubmit} className="grid max-w-md gap-3">
+          <label className="text-sm">
+            <span className="text-zinc-600 dark:text-zinc-400">Parent</span>
+            <select
+              required
+              className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-950"
+              value={form.parent_id}
+              onChange={(e) => setForm((f) => ({ ...f, parent_id: e.target.value }))}
+            >
+              <option value="">Select a parent</option>
+              {parents?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {parents && parents.length === 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              No parent users yet. Add one on the Parents page, then return here.
+            </p>
+          )}
           <label className="text-sm">
             <span className="text-zinc-600 dark:text-zinc-400">Name</span>
             <input
@@ -109,7 +134,7 @@ export default function StudentsPage() {
         </form>
       </div>
 
-      <h2 className="mb-3 text-sm font-medium text-zinc-500">Your students</h2>
+      <h2 className="mb-3 text-sm font-medium text-zinc-500">All students</h2>
       {students === null && <p className="text-zinc-500">Loading…</p>}
       {students && students.length === 0 && <p className="text-zinc-500">No students yet.</p>}
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">

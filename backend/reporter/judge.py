@@ -16,12 +16,13 @@ class Evaluation(BaseModel):
     )
 
 
-async def evaluate(original_instructions, original_task, original_output) -> Evaluation:
+async def evaluate(original_instructions, original_task, original_output, context, tools) -> Evaluation:
     # Get model configuration
     model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
     # Set region for LiteLLM Bedrock calls
     bedrock_region = os.getenv("BEDROCK_REGION", "us-east-2")
     use_local_dev_model = os.getenv("USE_LOCAL_DEV_MODEL", "false")
+    
     logger.info(f"DEBUG: BEDROCK_REGION from env = {bedrock_region}")
     os.environ["AWS_REGION_NAME"] = bedrock_region
     logger.info(f"DEBUG: Set AWS_REGION_NAME to {bedrock_region}")
@@ -56,9 +57,13 @@ Evaluate this output and respond with your comments and score.
     try:
         logger.info("Judging end of camp report")
         agent = Agent(
-            name="Judge Agent", instructions=instructions, model=model, output_type=Evaluation
+            name="Judge Agent",
+            instructions=instructions,
+            model=model,
+            output_type=Evaluation,
+            tools=tools,
         )
-        result = await Runner.run(agent, input=task, max_turns=5)
+        result = await Runner.run(agent, input=task, context=context, max_turns=5)
         return result.final_output_as(Evaluation)
     except Exception as e:
         logger.error(f"Error evaluating end of camp report: {e}")

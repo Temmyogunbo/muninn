@@ -1,4 +1,4 @@
-import { SignInButton, SignOutButton, SignUpButton, useAuth, useUser } from "@clerk/nextjs";
+import { SignInButton, SignOutButton, SignUpButton, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { AppLayout } from "@/components/AppLayout";
 
@@ -10,13 +10,6 @@ const btn =
 
 export default function Home() {
   const { isLoaded, isSignedIn } = useAuth();
-  const { user, isLoaded: userLoaded } = useUser();
-  console.log({user, isLoaded, isSignedIn});
-
-  const name =
-    user?.firstName ||
-    user?.primaryEmailAddress?.emailAddress?.split("@")[0] ||
-    "there";
 
   return (
     <AppLayout>
@@ -29,10 +22,11 @@ export default function Home() {
             Muninn
           </h1>
           <p className="mt-3 max-w-prose text-lg text-slate-600 dark:text-slate-300">
-            Manage camp programs, courses, student&rsquo;s profiles, and enrollments in one place.
+            Administrator workspace for camp programs, courses, parent accounts, students, and enrollments in one
+            place.
           </p>
 
-          {isLoaded && userLoaded && isSignedIn && (
+          {isLoaded && isSignedIn && (
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center pt-4">
               <Link
                 href="/programs"
@@ -44,7 +38,7 @@ export default function Home() {
         )}
         </div>
 
-        {(!isLoaded || !userLoaded) && (
+        {!isLoaded && (
           <p className="text-center text-sm text-slate-500">Loading account…</p>
         )}
 
@@ -52,8 +46,8 @@ export default function Home() {
           <div className={card + " space-y-5"}>
             <h2 className="text-lg font-medium text-slate-900 dark:text-white">Get started</h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Sign in with your existing account, or create one to use the Muninn API and manage your family&rsquo;s
-              data securely.
+              Sign in or create an account. The first time you use the app, you are provisioned with an
+              administrator role so you can manage programs and create parent users.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
               <SignInButton mode="redirect" forceRedirectUrl="/">

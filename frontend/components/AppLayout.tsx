@@ -8,15 +8,34 @@ import {
 } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { useMuninnUserProfile } from "@/hooks/useMuninnUserProfile";
 
-const nav = [
+const navLoading = [
+  { href: "/", label: "Home" },
+  { href: "/profile", label: "Profile" },
+];
+
+const navAdmin = [
   { href: "/", label: "Home" },
   { href: "/programs", label: "Programs" },
   { href: "/courses", label: "Courses" },
   { href: "/students", label: "Students" },
+  { href: "/admin/parents", label: "Parents" },
   { href: "/profile", label: "Profile" },
 ];
+
+const navParentOrGuest = [
+  { href: "/", label: "Home" },
+  { href: "/profile", label: "Profile" },
+];
+
+function pathAllowedForNonAdmin(pathname: string): boolean {
+  if (pathname === "/") return true;
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) return true;
+  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) return true;
+  return false;
+}
 
 type Props = { children: ReactNode; title?: string };
 
@@ -24,9 +43,37 @@ const btnBase =
   "inline-flex items-center justify-center rounded-lg text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
 export function AppLayout({ children, title }: Props) {
-  const { pathname } = useRouter();
+  const { pathname, replace, isReady } = useRouter();
   const { user, isLoaded } = useUser();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const { user: muninnUser, loading: roleLoading, error: roleError, isAdmin } = useMuninnUserProfile();
+
+  const nav = useMemo(() => {
+    if (!isSignedIn) return navParentOrGuest;
+    if (roleLoading) return navLoading;
+    if (isAdmin) return navAdmin;
+    return navParentOrGuest;
+  }, [isSignedIn, roleLoading, isAdmin]);
+
+  useEffect(() => {
+    if (!isReady || !authLoaded || !isSignedIn) return;
+    if (roleLoading) return;
+    if (roleError) return;
+    if (!muninnUser) return;
+    if (isAdmin) return;
+    if (pathAllowedForNonAdmin(pathname)) return;
+    void replace({ pathname: "/profile", query: { restricted: "1" } });
+  }, [
+    isReady,
+    authLoaded,
+    isSignedIn,
+    roleLoading,
+    roleError,
+    muninnUser,
+    isAdmin,
+    pathname,
+    replace,
+  ]);
 
   return (
     <div className="min-h-screen text-slate-800 dark:text-slate-100">

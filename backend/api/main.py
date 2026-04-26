@@ -103,19 +103,35 @@ class userUpsertBody(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     email: str
     phone: str
-    role: Literal["parent", "instructor", "admin"]
 
 
 class userUpdate(BaseModel):
-    user_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    user_email: Optional[str] = None
-    user_phone: Optional[str] = None
+    display_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class ParentUserCreateBody(BaseModel):
+    """Create a user row for a parent (Clerk account must already exist for this `clerk_user_id`)."""
+
+    display_name: str = Field(min_length=1, max_length=255)
+    email: str
+    phone: str
+    clerk_user_id: str = Field(
+        min_length=1,
+        max_length=255,
+        description="The Clerk `sub` for this parent (from the Clerk dashboard after invite/sign-up).",
+    )
 
 
 class StudentCreateBody(BaseModel):
     student_name: str = Field(min_length=1, max_length=255)
     date_of_birth: date
     gender: Literal["male", "female", "other"]
+    parent_id: str = Field(
+        min_length=1,
+        description="User id of the parent (must have role parent in this system).",
+    )
 
 
 class ProgramEnrollmentCreateBody(BaseModel):
@@ -140,6 +156,15 @@ async def require_user_row(clerk_user_id: str = Depends(get_current_user_id)) ->
             detail="user profile not found.",
         )
     return row
+
+
+async def require_admin(user: Dict[str, Any] = Depends(require_user_row)) -> Dict[str, Any]:
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403,
+            detail="This action requires an administrator account.",
+        )
+    return user
 
 
 class ReportGenerationRequest(BaseModel):
@@ -178,7 +203,7 @@ async def get_or_create_user_profile(
         display_name=name,
         email=email,
         phone="+1-000-000-0000",
-        role="parent",
+        role="admin",
         clerk_user_id=clerk_user_id,
     )
     db.users.create_user(user)
@@ -194,16 +219,14 @@ async def create_user_profile(
     body: userUpsertBody,
     clerk_user_id: str = Depends(get_current_user_id),
 ):
-    """Explicitly create user (fails if already exists)."""
-    print("body", body)
-    print("clerk_user_id", clerk_user_id)
+    """Explicitly create user (fails if already exists). New self-service accounts are administrators."""
     if db.users.find_by_clerk_user_id(clerk_user_id):
         raise HTTPException(status_code=409, detail="user profile already exists")
     user = UserCreate(
         display_name=body.display_name,
         email=body.email,
         phone=body.phone,
-        role="parent",
+        role="admin",
         clerk_user_id=clerk_user_id,
     )
     db.users.create_user(user)
@@ -222,22 +245,48 @@ async def update_user_profile(
     data = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not data:
         return user
+    data["updated_at"] = datetime.now()
     db.users.update(user["id"], data)
     return db.users.find_by_clerk_user_id(clerk_user_id)
 
 
+@app.get("/api/parents")
+async def list_parent_users(_admin: Dict[str, Any] = Depends(require_admin)):
+    _ = _admin
+    return db.users.find_by_role("parent", limit=500)
+
+
+@app.post("/api/parents", status_code=status.HTTP_201_CREATED)
+async def create_parent_user(body: ParentUserCreateBody, _admin: Dict[str, Any] = Depends(require_admin)):
+    _ = _admin
+    if db.users.find_by_clerk_user_id(body.clerk_user_id):
+        raise HTTPException(status_code=409, detail="A user with this Clerk id already exists")
+    user = UserCreate(
+        display_name=body.display_name,
+        email=body.email,
+        phone=body.phone,
+        role="parent",
+        clerk_user_id=body.clerk_user_id,
+    )
+    db.users.create_user(user)
+    row = db.users.find_by_clerk_user_id(body.clerk_user_id)
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to create parent user")
+    return row
+
+
 @app.get("/api/programs")
-async def list_programs(clerk_user_id: str = Depends(get_current_user_id)):
-    _ = clerk_user_id
+async def list_programs(_admin: Dict[str, Any] = Depends(require_admin)):
+    _ = _admin
     return db.programs.find_all(limit=500, offset=0)
 
 
 @app.post("/api/programs")
 async def create_program(
     program: ProgramCreate,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     pid = db.programs.create_program(program)
     return db.programs.find_by_id(pid)
 
@@ -245,9 +294,9 @@ async def create_program(
 @app.get("/api/programs/{program_id}")
 async def get_program(
     program_id: str,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     row = db.programs.find_by_id(program_id)
     if not row:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -258,9 +307,9 @@ async def get_program(
 async def update_program(
     program_id: str,
     body: ProgramUpdate,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     row = db.programs.find_by_id(program_id)
     if not row:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -278,9 +327,9 @@ async def update_program(
 @app.delete("/api/programs/{program_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_program(
     program_id: str,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     row = db.programs.find_by_id(program_id)
     if not row:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -291,9 +340,10 @@ async def delete_program(
 @app.get("/api/programs/{program_id}/enrollments")
 async def list_program_enrollments(
     program_id: str,
-    # user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    """Enrollments for this program, limited to the signed-in user's students."""
+    """Enrollments for this program."""
+    _ = _admin
     program = db.programs.find_by_id(program_id)
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -304,8 +354,9 @@ async def list_program_enrollments(
 async def add_program_enrollment(
     program_id: str,
     body: ProgramEnrollmentCreateBody,
-    # user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
+    _ = _admin
     program = db.programs.find_by_id(program_id)
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -328,9 +379,10 @@ async def update_program_enrollment(
     program_id: str,
     enrollment_id: str,
     body: EnrollmentUpdate,
-    user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
     """Update an enrollment in this program (e.g. status, dates, or notes)."""
+    _ = _admin
     row = db.enrollments.find_by_id(enrollment_id)
     if not row or str(row.get("program_id")) != str(program_id):
         raise HTTPException(status_code=404, detail="Enrollment not found")
@@ -355,8 +407,9 @@ async def update_program_enrollment(
 async def delete_program_enrollment(
     program_id: str,
     enrollment_id: str,
-    user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
+    _ = _admin
     row = db.enrollments.find_by_id(enrollment_id)
     if not row or str(row.get("program_id")) != str(program_id):
         raise HTTPException(status_code=404, detail="Enrollment not found")
@@ -369,21 +422,29 @@ async def delete_program_enrollment(
 
 @app.get("/api/students")
 async def list_my_students(
-    user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
+    _ = _admin
     return db.students.find_all(limit=500, offset=0)
 
 
 @app.post("/api/students")
 async def create_student(
     body: StudentCreateBody,
-    user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
+    _ = _admin
+    parent = db.users.find_by_id(body.parent_id)
+    if not parent or parent.get("role") != "parent":
+        raise HTTPException(
+            status_code=400,
+            detail="parent_id must be the id of a user with role 'parent'.",
+        )
     student = StudentCreate(
         student_name=body.student_name,
         date_of_birth=body.date_of_birth,
         gender=body.gender,
-        parent_id=str(user["id"]),
+        parent_id=str(parent["id"]),
     )
     sid = db.students.create_student(student)
     return db.students.find_by_id(sid)
@@ -392,8 +453,9 @@ async def create_student(
 @app.get("/api/students/{student_id}")
 async def get_student(
     student_id: str,
-    user: Dict[str, Any] = Depends(require_user_row),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
+    _ = _admin
     student = db.students.find_by_id(student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -403,9 +465,9 @@ async def get_student(
 @app.get("/api/courses")
 async def list_courses(
     program_id: Optional[str] = None,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     if program_id:
         return db.courses.find_by_program(program_id)
     return db.courses.find_all(limit=500, offset=0)
@@ -414,33 +476,34 @@ async def list_courses(
 @app.post("/api/courses")
 async def create_course(
     course: CourseCreate,
-    clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
-    _ = clerk_user_id
+    _ = _admin
     cid = db.courses.create_course(course)
     return db.courses.find_by_id(cid)
 
 @app.get("/api/enrollments")
 async def list_enrollments(
-    _clerk: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
     enrollment_ids: List[str] = Query(
         ...,
         alias="id",
         description="Enrollment row id(s) to return. Repeat the query param for each id.",
     ),
 ):
-    """Return enrollment row(s) for the given id(s) (e.g. report generator by enrollment)."""
-    _ = _clerk
+    """Return enrollment row(s) for the given id(s) (e.g. report generator by enrollment).    """
+    _ = _admin
     return db.enrollments.find_by_ids(enrollment_ids)
 
 
 @app.post("/api/generate", response_model=ReportGenerationResponse)
 async def trigger_report_generation(
     request: ReportGenerationRequest,
-    # clerk_user_id: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
     """Create one job per enrollment and queue each to SQS."""
-    logger.info(f"Triggering report generation")
+    _ = _admin
+    logger.info("Triggering report generation")
 
     try:
         job_ids: List[str] = []
@@ -474,10 +537,10 @@ async def trigger_report_generation(
 async def get_job_status(
     job_id: str,
     enrollment_id: str,
-    # _clerk: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
 ):
     """Get job status and results (report payload) for an enrollment-scoped job."""
-    # _ = _clerk
+    _ = _admin
     try:
         job = db.jobs.find_by_id(job_id)
         if not job:
@@ -496,7 +559,7 @@ async def get_job_status(
 
 @app.get("/api/jobs")
 async def list_jobs(
-    # _clerk: str = Depends(get_current_user_id),
+    _admin: Dict[str, Any] = Depends(require_admin),
     enrollment_ids: Optional[List[str]] = Query(
         None,
         description="Filter to jobs for one or more enrollments. Repeat the query param for each id.",
@@ -504,7 +567,7 @@ async def list_jobs(
     limit: int = Query(100, ge=1, le=500),
 ):
     """List report jobs, optionally filtered by enrollment_id(s)."""
-    # _ = _clerk
+    _ = _admin
     try:
         if enrollment_ids:
             jobs_list = db.jobs.find_by_enrollment_ids(enrollment_ids, limit=limit)

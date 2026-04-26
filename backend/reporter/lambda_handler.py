@@ -53,24 +53,25 @@ def process_report_data_from_job(job_id: str) -> str:
         "instructor_comments": job.get("instructor_notes", ""),
     }
 
-async def run_reporter_agent(details: Dict[str, Any], job_id: str) -> str:
+async def run_reporter_agent(job_id: str) -> str:
     """Run the reporter agent to generate a program report."""
-    model, _tools, user_message = create_agent(details)
+    model, tools, user_message, context = create_agent(job_id)
 
     with trace("Reporter"):
         agent = Agent(
             name="Camp Program Reporter",
             instructions=REPORTER_INSTRUCTIONS,
             model=model,
-            input_guardrails=[reporter_input_guardrail],
+            # input_guardrails=[reporter_input_guardrail],
             output_guardrails=[camp_progress_output_guardrail],
+            tools=tools,
         )
 
-        result = await Runner.run(agent, input=user_message, max_turns=10)
+        result = await Runner.run(agent, input=user_message, context=context, max_turns=10)
 
         response = result.final_output
 
-        evaluation = await evaluate(REPORTER_INSTRUCTIONS, user_message, response)
+        evaluation = await evaluate(REPORTER_INSTRUCTIONS, user_message, response, context,tools)
         score = evaluation.score / 100
         comment = evaluation.feedback
         observation = f"Score: {score} - Feedback: {comment}"
@@ -114,9 +115,10 @@ def lambda_handler(event, context):
 
             logger.info(f"Reporter: Starting report generation for job {job_id}")
 
-            details = process_report_data_from_job(job_id)
+            # details = process_report_data_from_job(job_id)
 
-            result = asyncio.run(run_reporter_agent(details, job_id))
+            result = asyncio.run(run_reporter_agent(job_id))
+            print(f"Result: {result}")
 
             db.jobs.update_status(job_id=job_id, status="completed")
 
@@ -158,6 +160,6 @@ def lambda_handler(event, context):
             }
 
 if __name__ == "__main__":
-    lambda_handler({"job_id": "f7c3775b-5e51-4418-8c69-6d4b8421dd21", "enrollment_id": "b68b4ea2-c54d-4c37-a093-1228b31c1e85", "job_type": "generate_report",}, {"requestContext": {"functionArn": "arn:aws:lambda:us-east-2:182472159612:function:muninn-reporter"}})
+    lambda_handler({"job_id": "957fe361-3a50-4bb2-b537-b13cdfd399de", "enrollment_id": "b68b4ea2-c54d-4c37-a093-1228b31c1e85", "job_type": "generate_report",}, {"requestContext": {"functionArn": "arn:aws:lambda:us-east-2:182472159612:function:muninn-reporter"}})
 
     

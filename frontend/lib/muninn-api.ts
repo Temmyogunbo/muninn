@@ -100,11 +100,29 @@ export function updateUser(
     display_name?: string;
     email?: string;
     phone?: string;
-    role?: "parent" | "instructor" | "admin";
   },
 ): Promise<UserRow> {
   return muninnRequest<UserRow>(getToken, "/api/user/me", {
     method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listParents(getToken: MuninnGetToken): Promise<UserRow[]> {
+  return muninnRequest<UserRow[]>(getToken, "/api/parents");
+}
+
+export function createParent(
+  getToken: MuninnGetToken,
+  body: {
+    display_name: string;
+    email: string;
+    phone: string;
+    clerk_user_id: string;
+  },
+): Promise<UserRow> {
+  return muninnRequest<UserRow>(getToken, "/api/parents", {
+    method: "POST",
     body: JSON.stringify(body),
   });
 }
@@ -158,6 +176,7 @@ export function createStudent(
     student_name: string;
     date_of_birth: string;
     gender: Gender;
+    parent_id: string;
   },
 ): Promise<StudentRow> {
   return muninnRequest<StudentRow>(getToken, "/api/students", {
@@ -247,6 +266,8 @@ export type MuninnApi = {
   health: typeof getHealth;
   getUserMe: () => ReturnType<typeof getUserMe>;
   updateUser: (body: Parameters<typeof updateUser>[1]) => ReturnType<typeof updateUser>;
+  listParents: () => ReturnType<typeof listParents>;
+  createParent: (body: Parameters<typeof createParent>[1]) => ReturnType<typeof createParent>;
   listPrograms: () => ReturnType<typeof listPrograms>;
   getProgram: (id: string) => ReturnType<typeof getProgram>;
   createProgram: (body: Parameters<typeof createProgram>[1]) => ReturnType<typeof createProgram>;
@@ -255,7 +276,7 @@ export type MuninnApi = {
   listStudents: () => ReturnType<typeof listStudents>;
   getStudent: (id: string) => ReturnType<typeof getStudent>;
   createStudent: (body: Parameters<typeof createStudent>[1]) => ReturnType<typeof createStudent>;
-  listCourses: (programId?: string) => ReturnType<typeof listCourses>;
+  listCourses: () => ReturnType<typeof listCourses>;
   createCourse: (body: Parameters<typeof createCourse>[1]) => ReturnType<typeof createCourse>;
   listEnrollments: (enrollmentIds: string[]) => ReturnType<typeof listEnrollments>;
   listProgramEnrollments: (programId: string) => ReturnType<typeof listProgramEnrollments>;
@@ -273,6 +294,8 @@ export function createMuninnApiClient(getToken: MuninnGetToken): MuninnApi {
     health: () => getHealth(),
     getUserMe: () => getUserMe(getToken),
     updateUser: (body) => updateUser(getToken, body),
+    listParents: () => listParents(getToken),
+    createParent: (body) => createParent(getToken, body),
     listPrograms: () => listPrograms(getToken),
     getProgram: (id) => getProgram(getToken, id),
     createProgram: (body) => createProgram(getToken, body),
