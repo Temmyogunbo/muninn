@@ -66,11 +66,11 @@ if [ -z "$AURORA_CLUSTER_ARN" ] || [ -z "$AURORA_SECRET_ARN" ]; then
   exit 1
 fi
 
-echo "  ✅ Aurora Cluster ARN: $AURORA_CLUSTER_ARN"
-echo "  ✅ Aurora Secret ARN:  $AURORA_SECRET_ARN"
 
 # Now apply agents with all required variables
 cd "$TERRAFORM_DIR"
+
+echo "  Applying Terraform..."
 
 terraform apply -auto-approve \
   -var="environment=${ENVIRONMENT}" \

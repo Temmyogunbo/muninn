@@ -190,6 +190,8 @@ resource "aws_lambda_function" "reporter" {
       DEFAULT_AWS_REGION = var.aws_region
       OPENAI_API_KEY     = var.openai_api_key
       ENVIRONMENT        = var.environment
+      SENDGRID_API_KEY   = var.sendgrid_api_key
+      
     }
   }
 
