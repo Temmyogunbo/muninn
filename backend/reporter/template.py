@@ -39,7 +39,7 @@ INPUT_SAMPLE = {
   "child_gender": "male",
 
 }
-REPORT_TAMPLE = """
+REPORT_SAMPLE= """
 
 # End-of-Program Report
 **STEM Exploration Camp** · Summer Camp
@@ -150,5 +150,5 @@ Emmanuel Park Team
 {INPUT_SAMPLE}
 
 ## Example report
-{REPORT_TEMPLATE}
+{REPORT_SAMPLE}
 """
