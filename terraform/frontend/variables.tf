@@ -20,12 +20,13 @@ variable "use_local_stack_state" {
 variable "clerk_jwks_url" {
   description = "Clerk JWKS URL for JWT validation in Lambda"
   type        = string
+  default = "https://natural-stork-59.clerk.accounts.dev/.well-known/jwks.json"
 }
 
 variable "clerk_issuer" {
   description = "Clerk issuer URL (kept for Lambda environment)"
   type        = string
-  default     = "" # Not actually used but kept for backwards compatibility
+  default     = "https://natural-stork-59.clerk.accounts.dev" # Not actually used but kept for backwards compatibility
 }
 
 
