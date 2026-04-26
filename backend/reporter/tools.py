@@ -83,7 +83,6 @@ async def send_program_report_email(
     You must pass the exact parent_email value from the generate_program_data output (the parent's address on file).
     subject should be short and specific (e.g. include the program name). html_body must be full HTML, not markdown.
     """
-    print(f"parent_email: {parent_email}")
     logger.info(f"sending email to: {parent_email}")
     job_id = wrapper.context.job_id
     result = await send_program_report_email_internal(
@@ -94,4 +93,5 @@ async def send_program_report_email(
     )
     if result.get("ok"):
         return f"Email sent successfully to {result.get('recipient')}."
+    logger.error(f"Email was not sent: {result.get('error', 'unknown error')}")
     return f"Email was not sent: {result.get('error', 'unknown error')}"

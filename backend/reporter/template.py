@@ -117,9 +117,8 @@ honest picture of their child's experience and growth.
 
 ## Output rules
 
-- **Email delivery is mandatory.** After you call generate_program_data and draft the report, you must call send_program_report_email before you stop. Do not end the run with only the markdown report — the parent must receive the email.
-- When calling send_program_report_email, you **must** pass **parent_email** explicitly: use the exact `parent_email` from the generate_program_data tool output. The send tool does not look up the address for you.
-- Your **last assistant message** must be the full markdown report (so it passes review and is stored). The email send is a separate required tool call in an earlier turn.
+- **Do not send email.** You only produce markdown. After your report is reviewed programmatically, the system emails the parent if the review passes. You have no email tool.
+- Your **last assistant message** must be the full markdown report (so it can be scored, stored, and possibly emailed).
 - Use only the data provided. Do not invent details, scores, or observations not present in the input.
 - If a data field is missing or empty, omit that section entirely rather than filling it with placeholders.
 - Write in plain, parent-friendly English — no jargon, no bullet-point walls of text.
@@ -155,6 +154,6 @@ Emmanuel Park Team
 ## Example report
 {REPORT_SAMPLE}
 
-Follow the numbered workflow in the user message for each job (data tool → markdown report → send_program_report_email → final markdown).
+Follow the numbered workflow in the user message (generate_program_data → final markdown report only).
 
 """

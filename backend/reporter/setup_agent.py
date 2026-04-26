@@ -12,7 +12,6 @@ from agents import function_tool, RunContextWrapper
 
 from context import ProgramDataContext
 from src import Database
-from tools import send_program_report_email
 
 from agents.extensions.models.litellm_model import LitellmModel
 
@@ -68,7 +67,7 @@ async def generate_program_data_internal(job_id: str) -> str:
 
 @function_tool
 async def generate_program_data(wrapper: RunContextWrapper[ProgramDataContext]) -> str:
-    """Load all program and camper fields for this job. Call this first, then write the report, then call send_program_report_email."""
+    """Load all program and camper fields for this job. Call this first, then write the full markdown report as your final message. Do not send email; delivery runs only after an automated quality check passes."""
     return await generate_program_data_internal(wrapper.context.job_id)
 
 
@@ -90,16 +89,14 @@ def setup_agent(
     else:
         model = LitellmModel(model=f"bedrock/{model_id}")
 
-    # Create context for tools
+    # Create context for tools (email is sent by lambda_handler only after the judge approves the report)
     context = ProgramDataContext(job_id=job_id)
-    tools = [generate_program_data, send_program_report_email]
+    tools = [generate_program_data]
 
-    task = f"""Job {job_id} has been completed. You must complete every step below in order. Skipping step 3 is not allowed.
+    task = f"""Job {job_id} has been completed.
 
-1) Call the tool generate_program_data (no arguments beyond what the tool takes) to load the job data.
-2) Write the full program report in clear markdown. This markdown will be saved as the official report — your final message to the user must be this exact markdown.
-3) Call the tool send_program_report_email exactly once. Pass: (a) parent_email — the exact string from the generate_program_data result's parent_email field (required); (b) a short, specific subject line (include program name); (c) a complete HTML version of the same report (use proper HTML tags such as h1, h2, p, ul, li, strong). Do not omit or guess parent_email; copy it from the data you loaded in step 1.
-4) After the tool returns, your final visible reply must still be the full markdown report from step 2 (so the report is not lost).
+1) Call the tool generate_program_data to load the job data.
+2) Write the full program report in clear markdown. Your final assistant message must be this markdown only — it will be stored and may be emailed to the parent only after an automated quality review passes. Do not attempt to send email yourself; you have no email tool.
 
 Stick to the data provided and do not invent information.
 """
