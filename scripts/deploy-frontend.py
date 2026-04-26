@@ -174,6 +174,7 @@ def build_frontend(api_url=None):
         with open(env_prod_local, "w") as f:
             f.writelines(lines)
         print("  ✅ Created .env.production.local with API URL")
+        print(f".env.production.local: {lines}")
 
     # Build the frontend - NextJS will automatically use .env.production for production builds
     print("  Building NextJS app for production...")
