@@ -22,34 +22,6 @@ logger.setLevel(logging.INFO)
 
 GUARD_AGAINST_SCORE = 0.6  # Guard against score being too low
 
-def process_report_data_from_job(job_id: str) -> str:
-    job = db.jobs.find_by_job_id_extended(job_id=job_id)
-
-    if not job:
-        return None
-
-    return {
-               "program_name":       job.get("program_name", ""),
-        "program_type":       job.get("program_type", ""),
-        "program_start_date": job.get("program_start_date", ""),
-        "program_end_date":   job.get("end_date", ""),
-       "program_location":   job.get("program_location", ""),
-
-        "course_name":               job.get("course_name", ""),
-        "course_description":        job.get("course_description", ""),
-        "course_learning_outcomes":  "\n".join(job.get("course_learning_outcomes", []) or []),
-        "course_learning_objectives": "\n".join(job.get("course_learning_objectives", []) or []),
-        "course_skills":             "\n".join(job.get("course_skills", []) or []),
-
-        "parent_name":  job.get("parent_name", ""),
-        "parent_email": job.get("parent_email", ""),
-
-        "child_name":       job.get("student_name", ""),
-        "child_age":        job.get("student_date_of_birth", ""),
-        "child_gender":     job.get("student_gender", ""),
-        "instructor_comments": job.get("instructor_notes", ""),
-    }
-
 async def run_reporter_agent(job_id: str) -> str:
     """Run the reporter agent to generate a program report."""
     model, tools, user_message, context = setup_agent(job_id)

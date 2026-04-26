@@ -61,8 +61,6 @@ async def generate_program_data_internal(job_id: str) -> str:
     """
     program_data = await process_report_data_from_job(job_id)
 
-    logger.info(f"Program data: {program_data}")
-
     if not program_data:
         return f"Program data generator failed: No data found for job {job_id}"
 
@@ -100,7 +98,7 @@ def setup_agent(
 
 1) Call the tool generate_program_data (no arguments beyond what the tool takes) to load the job data.
 2) Write the full program report in clear markdown. This markdown will be saved as the official report — your final message to the user must be this exact markdown.
-3) Call the tool send_program_report_email exactly once: pass a short, specific subject line (include program name) and a complete HTML version of the same report (use proper HTML tags such as h1, h2, p, ul, li, strong). Omit recipient_email so the parent's address from the job is used.
+3) Call the tool send_program_report_email exactly once. Pass: (a) parent_email — the exact string from the generate_program_data result's parent_email field (required); (b) a short, specific subject line (include program name); (c) a complete HTML version of the same report (use proper HTML tags such as h1, h2, p, ul, li, strong). Do not omit or guess parent_email; copy it from the data you loaded in step 1.
 4) After the tool returns, your final visible reply must still be the full markdown report from step 2 (so the report is not lost).
 
 Stick to the data provided and do not invent information.

@@ -27,22 +27,12 @@ async def send_program_report_email_internal(
     job_id: str,
     subject: str,
     html_body: str,
-    recipient_email: str | None = None,
+    parent_email: str,
 ) -> dict[str, Any]:
-    """
-    Send an HTML email via SendGrid. If recipient_email is empty, resolves parent_email from the job.
-    """
-    # Lazy import avoids import cycle with setup_agent.
-    from setup_agent import process_report_data_from_job
-
-    to_addr = (recipient_email or "").strip()
+    """Send an HTML email via SendGrid. parent_email must be supplied by the caller (no DB lookup)."""
+    to_addr = (parent_email or "").strip()
     if not to_addr:
-        job_data = await process_report_data_from_job(job_id)
-        if not job_data:
-            return {"ok": False, "error": f"No job data for job_id={job_id}"}
-        to_addr = (job_data.get("parent_email") or "").strip()
-        if not to_addr:
-            return {"ok": False, "error": "No parent_email on job and no recipient provided"}
+        return {"ok": False, "error": "parent_email is required and cannot be empty"}
 
     from_email = os.environ.get("SENDGRID_FROM_EMAIL", "temmyogunbo@gmail.com").strip()
     if not from_email:
@@ -85,21 +75,22 @@ async def send_program_report_email(
     wrapper: RunContextWrapper[ProgramDataContext],
     subject: str,
     html_body: str,
-    recipient_email: str | None = None,
+    parent_email: str,
 ) -> str:
     """
-    **Required** once per job after the markdown report is written. Sends the report to the parent via email.
+    Send the completed program report to the parent via email. Call once after the markdown report is ready.
 
-    Call this after drafting the full report. Use a clear subject (include program name).
-    html_body must be complete HTML (not markdown). If recipient_email is omitted, the parent's
-    email from the job record is used.
+    You must pass the exact parent_email value from the generate_program_data output (the parent's address on file).
+    subject should be short and specific (e.g. include the program name). html_body must be full HTML, not markdown.
     """
+    print(f"parent_email: {parent_email}")
+    logger.info(f"sending email to: {parent_email}")
     job_id = wrapper.context.job_id
     result = await send_program_report_email_internal(
         job_id=job_id,
         subject=subject,
         html_body=html_body,
-        recipient_email=recipient_email,
+        parent_email=parent_email,
     )
     if result.get("ok"):
         return f"Email sent successfully to {result.get('recipient')}."
