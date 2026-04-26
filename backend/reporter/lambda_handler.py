@@ -6,14 +6,12 @@ import asyncio
 import json
 import logging
 
-from typing import Any, Dict, Optional
-
 
 from agents import Agent, InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered, Runner, trace
 from judge import evaluate
-from guardrails import camp_progress_output_guardrail, reporter_input_guardrail
+from guardrails import camp_progress_output_guardrail
 from observability import observe
-from setup_agent import create_agent
+from setup_agent import setup_agent
 from template import REPORTER_INSTRUCTIONS
 from src import Database    
 
@@ -23,7 +21,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 GUARD_AGAINST_SCORE = 0.6  # Guard against score being too low
-
 
 def process_report_data_from_job(job_id: str) -> str:
     job = db.jobs.find_by_job_id_extended(job_id=job_id)
@@ -55,23 +52,22 @@ def process_report_data_from_job(job_id: str) -> str:
 
 async def run_reporter_agent(job_id: str) -> str:
     """Run the reporter agent to generate a program report."""
-    model, tools, user_message, context = create_agent(job_id)
+    model, tools, user_message, context = setup_agent(job_id)
 
     with trace("Reporter"):
         agent = Agent(
             name="Camp Program Reporter",
             instructions=REPORTER_INSTRUCTIONS,
             model=model,
-            # input_guardrails=[reporter_input_guardrail],
             output_guardrails=[camp_progress_output_guardrail],
             tools=tools,
         )
 
-        result = await Runner.run(agent, input=user_message, context=context, max_turns=10)
+        result = await Runner.run(agent, input=user_message, context=context, max_turns=15)
 
         response = result.final_output
 
-        evaluation = await evaluate(REPORTER_INSTRUCTIONS, user_message, response, context,tools)
+        evaluation = await evaluate(REPORTER_INSTRUCTIONS, user_message, response, context, [tools[0]])
         score = evaluation.score / 100
         comment = evaluation.feedback
         observation = f"Score: {score} - Feedback: {comment}"
@@ -115,10 +111,8 @@ def lambda_handler(event, context):
 
             logger.info(f"Reporter: Starting report generation for job {job_id}")
 
-            # details = process_report_data_from_job(job_id)
 
             result = asyncio.run(run_reporter_agent(job_id))
-            print(f"Result: {result}")
 
             db.jobs.update_status(job_id=job_id, status="completed")
 

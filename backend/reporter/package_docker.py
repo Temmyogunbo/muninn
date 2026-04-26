@@ -74,12 +74,14 @@ def package_lambda():
         run_command(docker_cmd)
         
         # Copy Lambda handler and Python modules
+        shutil.copy(reporter_dir / "context.py", package_dir)
         shutil.copy(reporter_dir / "guardrails.py", package_dir)
         shutil.copy(reporter_dir / "judge.py", package_dir)
         shutil.copy(reporter_dir / "lambda_handler.py", package_dir)
         shutil.copy(reporter_dir / "observability.py", package_dir)
         shutil.copy(reporter_dir / "setup_agent.py", package_dir)
         shutil.copy(reporter_dir / "template.py", package_dir)
+        shutil.copy(reporter_dir / "tools.py", package_dir)
         
         # Create the zip file
         zip_path = reporter_dir / "reporter_lambda.zip"

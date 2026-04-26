@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents import GuardrailFunctionOutput, input_guardrail, output_guardrail
+from agents import GuardrailFunctionOutput, output_guardrail
 
 _REPORTER_CONTEXT_MARKER = "Reporter Agent Context"
 _MIN_REPORT_CHARS = 180
@@ -26,24 +26,6 @@ _BLOCKED_OUTPUT_FRAGMENTS = (
     "disregard the above",
     "system prompt",
 )
-
-
-@input_guardrail(name="reporter_trusted_context", run_in_parallel=False)
-def reporter_input_guardrail(_ctx, _agent, user_input: str | list[Any]) -> GuardrailFunctionOutput:
-    """Only accept inputs that look like our structured reporter payload."""
-    payload = user_input if isinstance(user_input, str) else ""
-    if not payload.strip():
-        return GuardrailFunctionOutput(
-            output_info={"reason": "empty_input"},
-            tripwire_triggered=True,
-        )
-    if _REPORTER_CONTEXT_MARKER not in payload:
-        return GuardrailFunctionOutput(
-            output_info={"reason": "missing_reporter_context_marker"},
-            tripwire_triggered=True,
-        )
-    return GuardrailFunctionOutput(output_info={"ok": True}, tripwire_triggered=False)
-
 
 @output_guardrail(name="camp_progress_report_safe")
 def camp_progress_output_guardrail(_ctx, _agent, agent_output: Any) -> GuardrailFunctionOutput:

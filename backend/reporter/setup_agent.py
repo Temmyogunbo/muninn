@@ -8,24 +8,19 @@ import logging
 import random
 from typing import Dict, Any
 from datetime import datetime
-from dataclasses import dataclass
 from agents import function_tool, RunContextWrapper
 
+from context import ProgramDataContext
 from src import Database
+from tools import send_program_report_email
 
-# No tools needed - simplified agent
 from agents.extensions.models.litellm_model import LitellmModel
 
 db = Database()
 
 logger = logging.getLogger()
 
-@dataclass
-class ProgramDataContext:
-    """Context for generating a program report data from a job."""
-    job_id: str
-
-async def process_report_data_from_job(job_id: str) -> str:
+async def process_report_data_from_job(job_id: str) -> Dict[str, Any] | None:
     job = db.jobs.find_by_job_id_extended(job_id=job_id)
 
     if not job:
@@ -66,8 +61,6 @@ async def generate_program_data_internal(job_id: str) -> str:
     """
     program_data = await process_report_data_from_job(job_id)
 
-    print(f"Program data: {program_data}")
-
     logger.info(f"Program data: {program_data}")
 
     if not program_data:
@@ -77,73 +70,15 @@ async def generate_program_data_internal(job_id: str) -> str:
 
 @function_tool
 async def generate_program_data(wrapper: RunContextWrapper[ProgramDataContext]) -> str:
-    """Generate the program data from a job."""
+    """Load all program and camper fields for this job. Call this first, then write the report, then call send_program_report_email."""
     return await generate_program_data_internal(wrapper.context.job_id)
 
 
-# def create_agent(
-#     program_data: Dict[str, Any], db=None
-# ):
-#     """Create the reporter agent with tools and context."""
 
-#     # Get model configuration
-#     model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
-#     USE_LOCAL_DEV_MODEL = os.getenv("USE_LOCAL_DEV_MODEL", "false")
-#     # Set region for LiteLLM Bedrock calls
-#     bedrock_region = os.getenv("BEDROCK_REGION", "us-east-2")
-#     os.environ["AWS_REGION_NAME"] = bedrock_region
-
-#     if USE_LOCAL_DEV_MODEL == "true":
-#         model = LitellmModel(model="gpt-4.1-mini")
-#     else:
-#         model = LitellmModel(model=f"bedrock/{model_id}")
-
-#     # No tools needed - agent will return analysis as final output
-#     tools = [invoke_job_generator]
-
-#     # Format comprehensive context for the agent
-#     task = f"""
-# # Reporter Agent Context
-
-# ## Program Outcomes
-# - Program Name: {program_data.get("program_name", "")}
-# - Program Type: {program_data.get("program_type", "unknown")}
-# - Program Start Date: {program_data.get("program_start_date", "unknown")}
-# - Program End Date: {program_data.get("program_end_date", "unknown")}
-# - Program Location: {program_data.get("program_location", "unknown")}
-
-
-# ## Course Details
-# - Course Name: {program_data.get("course_name", "unknown")}
-# - Course Description: {program_data.get("course_description", "unknown")}
-# - Course Learning Outcomes: {program_data.get("course_learning_outcomes", "unknown")}
-# - Course Skills: {program_data.get("course_skills", "unknown")}
-# - Course Learning Objectives: {program_data.get("course_learning_objectives", "unknown")}
-
-# ## Parent Details
-# - Parent Name: {program_data.get("parent_name", "unknown")}
-# - Parent Email: {program_data.get("parent_email", "unknown")}
-
-# ## Child Details
-# - Child Name: {program_data.get("child_name", "unknown")}
-# - Child Age: {program_data.get("child_age", "unknown")}
-# - Child Gender: {program_data.get("child_gender", "unknown")}
-
-# ## Instructor Notes
-# - Instructor Notes: {program_data.get("instructor_notes", "unknown")}
-
-# Your task: Analyze this outcomes data and provide a comprehensive program report for the parent.
-# Provide your report in clear markdown format.
-
-# You should stick to the data provided and not make up any information.
-# """
-
-#     return model, tools, task
-
-def create_agent(
+def setup_agent(
     job_id: str
 ):
-    """Create the reporter agent with tools and context."""
+    """Setup the reporter agent with tools and context."""
 
     # Get model configuration
     model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
@@ -157,17 +92,17 @@ def create_agent(
     else:
         model = LitellmModel(model=f"bedrock/{model_id}")
 
-   # Create context for tools
+    # Create context for tools
     context = ProgramDataContext(job_id=job_id)
-    # No tools needed - agent will return analysis as final output
-    tools = [generate_program_data]
+    tools = [generate_program_data, send_program_report_email]
 
-    # Format comprehensive context for the agent
+    task = f"""Job {job_id} has been completed. You must complete every step below in order. Skipping step 3 is not allowed.
 
-    task = f"""Job {job_id} has been completed.
-Generate a comprehensive program report for the parent.
-Provide your report in clear markdown format.
+1) Call the tool generate_program_data (no arguments beyond what the tool takes) to load the job data.
+2) Write the full program report in clear markdown. This markdown will be saved as the official report — your final message to the user must be this exact markdown.
+3) Call the tool send_program_report_email exactly once: pass a short, specific subject line (include program name) and a complete HTML version of the same report (use proper HTML tags such as h1, h2, p, ul, li, strong). Omit recipient_email so the parent's address from the job is used.
+4) After the tool returns, your final visible reply must still be the full markdown report from step 2 (so the report is not lost).
 
-You should stick to the data provided and not make up any information.
+Stick to the data provided and do not invent information.
 """
     return model, tools, task, context
