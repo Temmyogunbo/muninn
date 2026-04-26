@@ -78,7 +78,7 @@ terraform apply -auto-approve \
   -var="aurora_cluster_arn=${AURORA_CLUSTER_ARN}" \
   -var="aurora_secret_arn=${AURORA_SECRET_ARN}" \
   -var="bedrock_model_id=${BEDROCK_MODEL_ID}" \
-  -var="openai_api_key=${OPENAI_API_KEY}"
+  -var="openai_api_key=${OPENAI_API_KEY}" \
   -var="sendgrid_api_key=${SENDGRID_API_KEY}"
 
 echo "✅ Agents deployed!"
