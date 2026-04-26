@@ -44,21 +44,26 @@ def package_lambda():
             cwd=str(reporter_dir)
         )
 
-        # Filter out packages that don't work in Lambda
+        # Filter out packages that don't work in Lambda or are local path dependencies
         filtered_requirements = []
         for line in requirements_result.splitlines():
             # Skip pyperclip (clipboard library not needed in Lambda)
             if line.startswith("pyperclip"):
                 print(f"Excluding from Lambda: {line}")
                 continue
+            # Skip local database package — it's installed separately via Docker volume mount.
+            # uv export may emit it as a file:// URL, a relative path, or an editable -e flag.
+            if "database" in line or line.strip().startswith("-e"):
+                print(f"Excluding local path dep from requirements: {line}")
+                continue
             filtered_requirements.append(line)
 
         req_file = temp_path / "requirements.txt"
         req_file.write_text("\n".join(filtered_requirements))
         
-        # Use Docker to install dependencies for Lambda's architecture
-        # The --no-emit-project excludes the current project from requirements
-        # We still need to manually install the database package
+        # Use Docker to install dependencies for Lambda's architecture.
+        # The database package is installed separately from the /database volume mount.
+        # --no-cache-dir suppresses the pip cache ownership warning inside the container.
         docker_cmd = [
             "docker", "run", "--rm",
             "--platform", "linux/amd64",
@@ -68,7 +73,7 @@ def package_lambda():
             "--entrypoint", "/bin/bash",
             "public.ecr.aws/lambda/python:3.12",
             "-c",
-            """cd /build && pip install --target ./package -r requirements.txt && pip install --target ./package --no-deps /database"""
+            "cd /build && pip install --no-cache-dir --target ./package -r requirements.txt && pip install --no-cache-dir --target ./package --no-deps /database"
         ]
         
         run_command(docker_cmd)
