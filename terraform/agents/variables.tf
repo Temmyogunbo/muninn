@@ -69,3 +69,10 @@ variable "project_name" {
     error_message = "Project name must contain only lowercase letters, numbers, and hyphens."
   }
 }
+# SENDGRID API key for sending email
+variable "sendgrid_api_key" {
+  description = "SENDGRID API key for sending email"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
