@@ -120,7 +120,6 @@ jobs:
           DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
-          BEDROCK_REGION: ${{ secrets.BEDROCK_REGION }}
 
   deploy-frontend:
     name: Deploy Frontend

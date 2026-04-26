@@ -152,11 +152,17 @@ def build_frontend(api_url=None):
         else:
             # Fallback to .env.local if .env.production doesn't exist
             env_local = frontend_dir / ".env.local"
+            print(f"env_local exists: {env_local}")
             if env_local.exists():
                 with open(env_local, "r") as f:
                     lines = f.readlines()
             else:
                 lines = []
+        
+        lines.append(f"\nNEXT_PUBLIC_CLERK_PUBLISHABLE_KEYL=pk_test_bmF0dXJhbC1zdG9yay01OS5jbGVyay5hY2NvdW50cy5kZXYk\n")
+        lines.append(f"\nCLERK_SECRET_KEY=sk_test_AEuctFtWyoTiOEmqKRXkm13lipbO2dFOrTEWaF6bc6\n")
+        lines.append(f"\nNEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard\n")
+        lines.append(f"\nNEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard\n")
 
         # Update the API URL
         api_line_found = False
