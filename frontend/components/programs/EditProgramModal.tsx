@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 import { ProgramFormFields } from "./ProgramFormFields";
 import { ProgramModalShell } from "./ProgramModalShell";
 import { emptyProgramForm, programToForm } from "./programUtils";
-import type { IProgram, ProgramCreateInput } from "@/lib/types";
+import type { CourseRow, IProgram, ProgramCreateInput } from "@/lib/types";
 
 type Props = {
   program: IProgram | null;
   isSubmitting: boolean;
+  courses: CourseRow[];
   onClose: () => void;
   onSave: (id: string, data: ProgramCreateInput) => Promise<void>;
 };
 
-export function EditProgramModal({ program, isSubmitting, onClose, onSave }: Props) {
+export function EditProgramModal({ program, isSubmitting, courses, onClose, onSave }: Props) {
   const [form, setForm] = useState<ProgramCreateInput>(emptyProgramForm());
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function EditProgramModal({ program, isSubmitting, onClose, onSave }: Pro
       backdropCloseDisabled={isSubmitting}
     >
       <form onSubmit={onSubmit} className="space-y-3">
-        <ProgramFormFields value={form} onChange={setForm} />
+        <ProgramFormFields value={form} onChange={setForm} courses={courses} />
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <button
             type="button"
@@ -51,7 +52,7 @@ export function EditProgramModal({ program, isSubmitting, onClose, onSave }: Pro
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || courses.length === 0}
             className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
           >
             {isSubmitting ? "Saving…" : "Save changes"}

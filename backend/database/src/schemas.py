@@ -30,6 +30,7 @@ class ProgramUpdate(BaseModel):
     end_date: Optional[date] = None
     location: Optional[str] = Field(None, min_length=1, max_length=255)
     program_type: Optional[Literal["summer_camp", "after_school_program", "online_program", "holiday_camp"]] = None
+    course_id: Optional[UUID] = Field(None, description="Linked course for this program")
 
 
 class UserCreate(BaseModel):

@@ -18,6 +18,7 @@ export default function ReportGenerator() {
     latestJobByEnrollmentId,
     completedJobByEnrollmentId,
     isGenerating,
+    enrollmentIdsInActiveRun,
     progress,
     startReportGeneration,
     // isAgentActive,
@@ -43,6 +44,7 @@ export default function ReportGenerator() {
               enrollmentContextError={enrollmentContextError}
               enrollmentTableRows={enrollmentTableRows}
               isGenerating={isGenerating}
+              enrollmentIdsInActiveRun={enrollmentIdsInActiveRun}
               onStart={() => void startReportGeneration()}
               latestJobByEnrollmentId={latestJobByEnrollmentId}
               completedJobByEnrollmentId={completedJobByEnrollmentId}

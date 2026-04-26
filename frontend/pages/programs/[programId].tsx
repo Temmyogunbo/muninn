@@ -73,17 +73,6 @@ export default function ProgramDetailPage() {
 
       {!program && !error && <p className="text-zinc-500">Loading…</p>}
 
-      {/* <h2 className="mb-2 text-sm font-medium text-zinc-500">Courses in this program</h2>
-      {courses && courses.length === 0 && <p className="text-zinc-500">No courses for this program yet.</p>}
-      <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-        {courses?.map((c) => (
-          <li key={c.id} className="px-4 py-3">
-            <p className="font-medium text-zinc-900 dark:text-zinc-100">{c.title}</p>
-            {c.description && <p className="text-sm text-zinc-500">{c.description}</p>}
-          </li>
-        ))}
-      </ul> */}
-
       {program && (
         <ProgramEnrollmentsBlock
           programId={id}

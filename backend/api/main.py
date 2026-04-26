@@ -335,7 +335,7 @@ async def update_program_enrollment(
     if not row or str(row.get("program_id")) != str(program_id):
         raise HTTPException(status_code=404, detail="Enrollment not found")
     student = db.students.find_by_id(str(row["student_id"]))
-    if not student or str(student.get("user_id")) != str(user["id"]):
+    if not student:
         raise HTTPException(status_code=404, detail="Enrollment not found")
     data = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not data:
@@ -361,7 +361,7 @@ async def delete_program_enrollment(
     if not row or str(row.get("program_id")) != str(program_id):
         raise HTTPException(status_code=404, detail="Enrollment not found")
     student = db.students.find_by_id(str(row["student_id"]))
-    if not student or str(student.get("user_id")) != str(user["id"]):
+    if not student:
         raise HTTPException(status_code=404, detail="Enrollment not found")
     db.enrollments.delete(enrollment_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -383,7 +383,7 @@ async def create_student(
         student_name=body.student_name,
         date_of_birth=body.date_of_birth,
         gender=body.gender,
-        user_id=str(user["id"]),
+        parent_id=str(user["id"]),
     )
     sid = db.students.create_student(student)
     return db.students.find_by_id(sid)
@@ -394,10 +394,10 @@ async def get_student(
     student_id: str,
     user: Dict[str, Any] = Depends(require_user_row),
 ):
-    row = db.students.find_by_id(student_id)
-    if not row or str(row.get("user_id")) != str(user["id"]):
+    student = db.students.find_by_id(student_id)
+    if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    return row
+    return student
 
 
 @app.get("/api/courses")
@@ -422,31 +422,16 @@ async def create_course(
 
 @app.get("/api/enrollments")
 async def list_enrollments(
-    # _clerk: str = Depends(get_current_user_id),
-    enrollment_ids: Optional[List[str]] = Query(
-        None,
+    _clerk: str = Depends(get_current_user_id),
+    enrollment_ids: List[str] = Query(
+        ...,
         alias="id",
-        description="If set, return only these enrollment rows. Repeat for multiple. Order preserved.",
+        description="Enrollment row id(s) to return. Repeat the query param for each id.",
     ),
 ):
-    """List all enrollments, or only those with the given id(s). Requires a signed-in user."""
-    # _ = _clerk
-
-    if enrollment_ids:
-        enrollments = db.enrollments.find_by_ids(enrollment_ids)
-        return enrollments
-    return db.enrollments.find_all(limit=500, offset=0)
-
-@app.post("/api/enrollments")
-async def create_enrollment(
-    enrollment: EnrollmentCreate,
-    user: Dict[str, Any] = Depends(require_user_row),
-):
-    student = db.students.find_by_id(enrollment.student_id)
-    if not student or str(student.get("user_id")) != str(user["id"]):
-        raise HTTPException(status_code=403, detail="Student does not belong to this user")
-    eid = db.enrollments.create_enrollment(enrollment)
-    return db.enrollments.find_by_id(eid)
+    """Return enrollment row(s) for the given id(s) (e.g. report generator by enrollment)."""
+    _ = _clerk
+    return db.enrollments.find_by_ids(enrollment_ids)
 
 
 @app.post("/api/generate", response_model=ReportGenerationResponse)

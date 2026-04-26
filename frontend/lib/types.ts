@@ -17,6 +17,7 @@ export type ProgramRow = {
   end_date: string;
   location: string;
   program_type: ProgramType;
+  course_id: string;
 };
 
 /** Full program row as returned from the API (includes audit fields when present). */
@@ -31,6 +32,7 @@ export type ProgramCreateInput = {
   end_date: string;
   location: string;
   program_type: ProgramType;
+  course_id: string;
 };
 
 export type ProgramUpdateInput = Partial<ProgramCreateInput>;

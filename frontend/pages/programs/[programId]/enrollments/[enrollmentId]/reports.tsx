@@ -36,12 +36,7 @@ export default function EnrollmentReportsPage() {
   const { reportView, openViewReport, closeViewReport } = useJobReportViewer();
 
   const programId = typeof router.query.programId === "string" ? router.query.programId : "";
-  const enrollmentId =
-    typeof router.query.enrollment_id === "string"
-      ? router.query.enrollment_id
-      : Array.isArray(router.query.enrollment_id)
-        ? router.query.enrollment_id[0] ?? ""
-        : "";
+  const enrollmentId = typeof router.query.enrollmentId === "string" ? router.query.enrollmentId : "";
 
   const [program, setProgram] = useState<IProgram | null>(null);
   const [enrollment, setEnrollment] = useState<EnrollmentRow | null>(null);
@@ -111,8 +106,8 @@ export default function EnrollmentReportsPage() {
   if (!enrollmentId) {
     return (
       <AppLayout title="Reports">
-        <p className="mb-4 text-zinc-500">No enrollment was specified. Open this page from a program&rsquo;s enrollments table.</p>
-        <Link href={`/programs/${programId}`} className="text-sm text-violet-700 hover:underline dark:text-violet-400">
+        <p className="mb-4 text-zinc-500">Invalid enrollment. Open this page from a program&rsquo;s enrollments table.</p>
+        <Link href={`/programs/${encodeURIComponent(programId)}`} className="text-sm text-violet-700 hover:underline dark:text-violet-400">
           ← Back to program
         </Link>
       </AppLayout>

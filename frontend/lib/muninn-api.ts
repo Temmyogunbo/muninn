@@ -180,14 +180,15 @@ export function createCourse(
   });
 }
 
+/** Fetches specific enrollment row(s) by id (e.g. report generator). */
 export function listEnrollments(
   getToken: MuninnGetToken,
-  enrollmentIds?: string[],
+  enrollmentIds: string[],
 ): Promise<EnrollmentRow[]> {
-  const query =
-    enrollmentIds?.length ?
-      `?${enrollmentIds.map((id) => `id=${encodeURIComponent(id)}`).join("&")}` :
-      "";
+  if (enrollmentIds.length === 0) {
+    return Promise.resolve([]);
+  }
+  const query = `?${enrollmentIds.map((id) => `id=${encodeURIComponent(id)}`).join("&")}`;
   return muninnRequest<EnrollmentRow[]>(getToken, `/api/enrollments${query}`);
 }
 
@@ -242,22 +243,6 @@ export async function deleteProgramEnrollment(
   );
 }
 
-export function createEnrollment(
-  getToken: MuninnGetToken,
-  body: {
-    student_id: string;
-    program_id: string;
-    enrolled_at: string;
-    status: EnrollmentStatus;
-    notes?: string | null;
-  },
-): Promise<EnrollmentRow> {
-  return muninnRequest<EnrollmentRow>(getToken, "/api/enrollments", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
 export type MuninnApi = {
   health: typeof getHealth;
   getUserMe: () => ReturnType<typeof getUserMe>;
@@ -272,7 +257,7 @@ export type MuninnApi = {
   createStudent: (body: Parameters<typeof createStudent>[1]) => ReturnType<typeof createStudent>;
   listCourses: (programId?: string) => ReturnType<typeof listCourses>;
   createCourse: (body: Parameters<typeof createCourse>[1]) => ReturnType<typeof createCourse>;
-  listEnrollments: (enrollmentIds?: string[]) => ReturnType<typeof listEnrollments>;
+  listEnrollments: (enrollmentIds: string[]) => ReturnType<typeof listEnrollments>;
   listProgramEnrollments: (programId: string) => ReturnType<typeof listProgramEnrollments>;
   addProgramEnrollment: (programId: string, body: Parameters<typeof addProgramEnrollment>[2]) => ReturnType<typeof addProgramEnrollment>;
   updateProgramEnrollment: (
@@ -281,7 +266,6 @@ export type MuninnApi = {
     body: EnrollmentUpdateInput,
   ) => ReturnType<typeof updateProgramEnrollment>;
   deleteProgramEnrollment: (programId: string, enrollmentId: string) => ReturnType<typeof deleteProgramEnrollment>;
-  createEnrollment: (body: Parameters<typeof createEnrollment>[1]) => ReturnType<typeof createEnrollment>;
 };
 
 export function createMuninnApiClient(getToken: MuninnGetToken): MuninnApi {
@@ -305,6 +289,5 @@ export function createMuninnApiClient(getToken: MuninnGetToken): MuninnApi {
     updateProgramEnrollment: (programId, enrollmentId, body) =>
       updateProgramEnrollment(getToken, programId, enrollmentId, body),
     deleteProgramEnrollment: (programId, enrollmentId) => deleteProgramEnrollment(getToken, programId, enrollmentId),
-    createEnrollment: (body) => createEnrollment(getToken, body),
   };
 }

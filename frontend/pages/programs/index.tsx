@@ -7,11 +7,12 @@ import {
   ProgramsToolbar,
 } from "@/components/programs";
 import { useMuninnApi } from "@/hooks/useMuninnApi";
-import type { IProgram, ProgramCreateInput } from "@/lib/types";
+import type { CourseRow, IProgram, ProgramCreateInput } from "@/lib/types";
 
 export default function ProgramsPage() {
   const api = useMuninnApi();
   const [programs, setPrograms] = useState<IProgram[] | null>(null);
+  const [courses, setCourses] = useState<CourseRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -27,9 +28,20 @@ export default function ProgramsPage() {
       .catch((e: Error) => setError(e.message));
   }, [api]);
 
+  const loadCourses = useCallback(() => {
+    api
+      .listCourses()
+      .then(setCourses)
+      .catch(() => setCourses([]));
+  }, [api]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadCourses();
+  }, [loadCourses]);
 
   function openCreateModal() {
     setEditing(null);
@@ -109,6 +121,7 @@ export default function ProgramsPage() {
       <CreateProgramModal
         open={createModalOpen}
         isSubmitting={saving}
+        courses={courses ?? []}
         onClose={closeCreateModal}
         onCreate={handleCreate}
       />
@@ -116,6 +129,7 @@ export default function ProgramsPage() {
       <EditProgramModal
         program={editing}
         isSubmitting={savingEdit}
+        courses={courses ?? []}
         onClose={closeEdit}
         onSave={handleSaveEdit}
       />
@@ -127,6 +141,7 @@ export default function ProgramsPage() {
       {programs && programs.length > 0 && (
         <ProgramsTable
           programs={programs}
+          courses={courses ?? []}
           deletingId={deletingId}
           onEdit={openEdit}
           onDelete={onDelete}

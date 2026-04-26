@@ -7,8 +7,20 @@ import { useJobReportViewer } from "@/hooks/useJobReportViewer";
 import type { EnrollmentRow, IProgram, StudentRow } from "@/lib/types";
 import { emitReportCompleted, emitReportFailed, emitReportStarted } from "@/lib/event";
 import type { AnalysisProgress, Job } from "@/components/generate-report/types";
+import { isJobTerminalStatus } from "@/components/generate-report/utils";
 
 const idleProgress: AnalysisProgress = { stage: "idle", message: "", activeAgents: [] };
+
+const POLL_MS = 2000;
+
+function zipEnrollmentToJobIds(enrollmentIds: string[], jobIds: string[]): Map<string, string> {
+  const m = new Map<string, string>();
+  enrollmentIds.forEach((eid, i) => {
+    const jid = jobIds[i];
+    if (eid && jid) m.set(eid, jid);
+  });
+  return m;
+}
 
 export function useGenerateReport() {
   const router = useRouter();
@@ -20,11 +32,15 @@ export function useGenerateReport() {
   const [allEnrollments, setAllEnrollments] = useState<EnrollmentRow[] | null>(null);
   const [enrollmentContextError, setEnrollmentContextError] = useState<string | null>(null);
   const [isGenerating, setisGenerating] = useState(false);
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  /** Bumps when a new run starts so the poll effect re-subscribes after `activeRunByEnrollment` is set. */
+  const [pollSession, setPollSession] = useState(0);
+  /** Enrollments in the last started batch (cleared when the batch finishes) — for row-level “generating” UI. */
+  const [enrollmentIdsInActiveRun, setEnrollmentIdsInActiveRun] = useState<string[] | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress>(idleProgress);
-  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
-  const pollEnrollmentIdRef = useRef<string | null>(null);
   const { reportView, openViewReport, closeViewReport } = useJobReportViewer();
+
+  /** When non-null, we poll until every job in this map reaches a terminal status. */
+  const activeRunByEnrollment = useRef<Map<string, string> | null>(null);
 
   const enrollmentIdsFromQuery = useMemo((): string[] => {
     if (!router.isReady) return [];
@@ -34,28 +50,29 @@ export function useGenerateReport() {
     return [String(q)];
   }, [router.isReady, router.query.enrollment_id]);
 
+  const fetchJobsList = useCallback(async (): Promise<Job[]> => {
+    const token = await getToken();
+    if (!token || enrollmentIdsFromQuery.length === 0) return [];
+    const params = new URLSearchParams();
+    for (const id of enrollmentIdsFromQuery) {
+      params.append("enrollment_ids", id);
+    }
+    const response = await fetch(`${getApiBaseUrl()}/api/jobs?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { jobs?: Job[] };
+    return data.jobs ?? [];
+  }, [enrollmentIdsFromQuery, getToken]);
+
   const fetchJobs = useCallback(async () => {
     try {
-      const token = await getToken();
-      if (enrollmentIdsFromQuery.length === 0) {
-        setJobs([]);
-        return;
-      }
-      const params = new URLSearchParams();
-      for (const id of enrollmentIdsFromQuery) {
-        params.append("enrollment_ids", id);
-      }
-      const response = await fetch(`${getApiBaseUrl()}/api/jobs?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setJobs(data.jobs || []);
-      }
+      const list = await fetchJobsList();
+      setJobs(list);
     } catch (error) {
       console.error("Error fetching jobs:", error);
     }
-  }, [enrollmentIdsFromQuery, getToken]);
+  }, [fetchJobsList]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -141,71 +158,46 @@ export function useGenerateReport() {
     return m;
   }, [jobs]);
 
-  useEffect(() => {
-    const checkJobStatusLocal = async (jobId: string) => {
-      try {
-        const enrollmentId = pollEnrollmentIdRef.current;
-        if (!enrollmentId) {
-          console.warn("No enrollment_id for job status poll");
-          return;
-        }
-        const token = await getToken();
-        const response = await fetch(
-          `${getApiBaseUrl()}/api/jobs/${jobId}?enrollment_id=${encodeURIComponent(enrollmentId)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-
-        if (response.ok) {
-          const job = await response.json();
-          if (job.status === "completed") {
-            setProgress({ stage: "complete", message: "Analysis complete!", activeAgents: [] });
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              setPollInterval(null);
-            }
-            emitReportCompleted(jobId);
-            fetchJobs();
-            pollEnrollmentIdRef.current = null;
-            // setTimeout(() => {
-            //   void router.push(`/analysis?job_id=${jobId}`);
-            // }, 1500);
-          } else if (job.status === "failed") {
-            setProgress({
-              stage: "error",
-              message: "Analysis failed",
-              activeAgents: [],
-              error: job.error || "Analysis encountered an error",
-            });
-            if (pollInterval) {
-              clearInterval(pollInterval);
-              setPollInterval(null);
-            }
-            emitReportFailed(jobId, job.error);
-            setisGenerating(false);
-            setCurrentJobId(null);
-            pollEnrollmentIdRef.current = null;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking job status:", error);
+  const completeBatchPoll = useCallback(
+    (runMap: Map<string, string>, list: Job[]) => {
+      const failedJob = [...runMap]
+        .map(([, id]) => list.find((x) => x.id === id))
+        .find((j) => j?.status === "failed");
+      activeRunByEnrollment.current = null;
+      setEnrollmentIdsInActiveRun(null);
+      setisGenerating(false);
+      if (failedJob) {
+        const err =
+          (failedJob as { error_message?: string }).error_message || "One or more reports failed.";
+        setProgress({ stage: "error", message: "Report generation failed", activeAgents: [], error: err });
+        emitReportFailed(failedJob.id, err);
+        return;
       }
-    };
+      setProgress({ stage: "complete", message: "All reports are ready.", activeAgents: [] });
+      const anyId = runMap.values().next().value;
+      if (typeof anyId === "string") emitReportCompleted(anyId);
+    },
+    [],
+  );
 
-    if (currentJobId && !pollInterval) {
-      const interval = setInterval(() => {
-        void checkJobStatusLocal(currentJobId);
-      }, 2000);
-      setPollInterval(interval);
+  const pollActiveRun = useCallback(async () => {
+    const runMap = activeRunByEnrollment.current;
+    if (!runMap?.size) return;
+
+    const list = await fetchJobsList();
+    setJobs(list);
+
+    let allTerminal = true;
+    for (const jobId of runMap.values()) {
+      const j = list.find((x) => x.id === jobId);
+      if (!j || !isJobTerminalStatus(j.status)) {
+        allTerminal = false;
+        break;
+      }
     }
-
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        setPollInterval(null);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentJobId, pollInterval, router]);
+    if (!allTerminal) return;
+    completeBatchPoll(runMap, list);
+  }, [fetchJobsList, completeBatchPoll]);
 
   const startReportGeneration = useCallback(async () => {
     if (enrollmentIdsFromQuery.length === 0) {
@@ -240,29 +232,33 @@ export function useGenerateReport() {
         }),
       });
 
-      if (response.ok) {
-        const data = (await response.json()) as { job_ids: string[] };
-        const firstJobId = data.job_ids?.[0] ?? null;
-        const firstEnrollmentId = enrollmentIdsFromQuery[0] ?? null;
-        if (!firstJobId || !firstEnrollmentId) {
-          throw new Error("Invalid response: missing job or enrollment");
-        }
-        pollEnrollmentIdRef.current = firstEnrollmentId;
-        setCurrentJobId(firstJobId);
-        emitReportStarted(firstJobId);
-        setProgress({
-          stage: "planner",
-          message: "Report job queued. Coordinating...",
-          activeAgents: ["Report Generator"],
-        });
-        setTimeout(() => {
-          setProgress({ stage: "parallel", message: "Processing…", activeAgents: ["Report Generator"] });
-        }, 2000);
-        void fetchJobs();
-      } else {
+      if (!response.ok) {
         const errText = await response.text();
         throw new Error(errText || "Failed to start report generation");
       }
+
+      const data = (await response.json()) as { job_ids: string[] };
+      const jobIds = data.job_ids ?? [];
+      if (jobIds.length === 0 || jobIds.length !== enrollmentIdsFromQuery.length) {
+        throw new Error("Invalid response: missing job ids for enrollments");
+      }
+
+      const runMap = zipEnrollmentToJobIds(enrollmentIdsFromQuery, jobIds);
+      activeRunByEnrollment.current = runMap;
+      setEnrollmentIdsInActiveRun([...enrollmentIdsFromQuery]);
+      setPollSession((n) => n + 1);
+
+      const firstJobId = jobIds[0]!;
+      emitReportStarted(firstJobId);
+      setProgress({
+        stage: "planner",
+        message: "Report jobs queued. Processing…",
+        activeAgents: ["Report Generator"],
+      });
+      setTimeout(() => {
+        setProgress((p) => (p.stage === "planner" ? { ...p, stage: "parallel", message: "Processing…" } : p));
+      }, 2000);
+      void fetchJobs();
     } catch (error) {
       console.error("Error starting report generation:", error);
       setProgress({
@@ -272,19 +268,25 @@ export function useGenerateReport() {
         error: error instanceof Error ? error.message : "Unknown error",
       });
       setisGenerating(false);
-      setCurrentJobId(null);
-      pollEnrollmentIdRef.current = null;
+      activeRunByEnrollment.current = null;
+      setEnrollmentIdsInActiveRun(null);
     }
   }, [enrollmentIdsFromQuery, getToken, fetchJobs]);
 
-  // const isAgentActive = useCallback(
-  //   (agentName: string) => progress.activeAgents.includes(agentName),
-  //   [progress.activeAgents],
-  // );
+  useEffect(() => {
+    if (!isGenerating) return;
+    if (!activeRunByEnrollment.current?.size) return;
+    void pollActiveRun();
+    const id = setInterval(() => {
+      void pollActiveRun();
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [isGenerating, pollSession, pollActiveRun]);
 
   const resetProgressForRetry = useCallback(() => {
     setisGenerating(false);
-    setCurrentJobId(null);
+    activeRunByEnrollment.current = null;
+    setEnrollmentIdsInActiveRun(null);
     setProgress(idleProgress);
   }, []);
 
@@ -300,7 +302,7 @@ export function useGenerateReport() {
     isGenerating,
     progress,
     startReportGeneration,
-    // isAgentActive,
+    enrollmentIdsInActiveRun,
     resetProgressForRetry,
     reportView,
     openViewReport,

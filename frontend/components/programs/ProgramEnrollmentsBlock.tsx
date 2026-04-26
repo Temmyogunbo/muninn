@@ -428,9 +428,7 @@ export function ProgramEnrollmentsBlock({ programId, enrollments, students, onRe
                       type="button"
                       onClick={() =>
                         void router.push(
-                          `/programs/${encodeURIComponent(programId)}/enrollment-reports?enrollment_id=${encodeURIComponent(
-                            e.id,
-                          )}`,
+                          `/programs/${encodeURIComponent(programId)}/enrollments/${encodeURIComponent(e.id)}/reports`,
                         )
                       }
                       className="text-sm font-medium text-violet-700 underline decoration-violet-300 underline-offset-2 transition hover:decoration-violet-700 dark:text-violet-400 dark:decoration-violet-600 dark:hover:decoration-violet-300"

@@ -20,3 +20,12 @@ export function getJobStatusTextColor(status: string): string {
       return "text-gray-500";
   }
 }
+
+export function isJobTerminalStatus(status: string): boolean {
+  return status === "completed" || status === "failed";
+}
+
+/** Job is still queued or in progress (show loader, disable view). */
+export function isJobPendingStatus(status: string): boolean {
+  return !isJobTerminalStatus(status);
+}

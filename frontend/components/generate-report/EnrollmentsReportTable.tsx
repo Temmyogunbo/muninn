@@ -1,27 +1,89 @@
 import type { EnrollmentTableRow, Job } from "./types";
-import { getJobStatusTextColor } from "./utils";
+import { getJobStatusTextColor, isJobPendingStatus } from "./utils";
 
 type Props = {
   enrollmentCount: number;
   enrollmentContextError: string | null;
   enrollmentTableRows: EnrollmentTableRow[] | null;
   isGenerating: boolean;
+  /** Enrollments in the current “start generation” batch (for view-button loading). */
+  enrollmentIdsInActiveRun: string[] | null;
   onStart: () => void;
   latestJobByEnrollmentId: Map<string, Job>;
   completedJobByEnrollmentId: Map<string, Job>;
   onViewReport: (jobId: string, enrollmentId: string) => void;
 };
 
+function ViewReportButton({
+  rowEnrollmentId,
+  latest,
+  doneJob,
+  inCurrentRun,
+  onView,
+}: {
+  rowEnrollmentId: string;
+  latest: Job | undefined;
+  doneJob: Job | undefined;
+  inCurrentRun: boolean;
+  onView: (jobId: string, enrollmentId: string) => void;
+}) {
+  const canView = Boolean(doneJob);
+  const failed = latest?.status === "failed";
+  const showLoader = inCurrentRun && !failed && (!latest || isJobPendingStatus(latest.status));
+
+  if (showLoader) {
+    return (
+      <span className="inline-flex min-w-[7rem] items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600">
+        <span
+          className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-primary"
+          aria-hidden
+        />
+        Generating…
+      </span>
+    );
+  }
+  if (failed) {
+    return (
+      <span
+        className="inline-flex min-w-[7rem] items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700"
+        title="Report generation failed"
+      >
+        Failed
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={!canView}
+      title={
+        canView ? "Open generated report" : "Report will be available when generation completes"
+      }
+      onClick={() => {
+        if (!doneJob) return;
+        onView(doneJob.id, rowEnrollmentId);
+      }}
+      className={`inline-flex min-w-[7rem] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+        canView ? "bg-blue-600  hover:bg-blue-600" : "cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400"
+      }`}
+    >
+      View report
+    </button>
+  );
+}
+
 export function EnrollmentsReportTable({
   enrollmentCount,
   enrollmentContextError,
   enrollmentTableRows,
   isGenerating,
+  enrollmentIdsInActiveRun,
   onStart,
   latestJobByEnrollmentId,
   completedJobByEnrollmentId,
   onViewReport,
 }: Props) {
+  const inRunSet = enrollmentIdsInActiveRun ? new Set(enrollmentIdsInActiveRun) : null;
   if (enrollmentCount === 0) return null;
 
   return (
@@ -72,10 +134,12 @@ export function EnrollmentsReportTable({
               enrollmentTableRows.map((row) => {
                 const latest = latestJobByEnrollmentId.get(row.enrollmentId);
                 const doneJob = completedJobByEnrollmentId.get(row.enrollmentId);
-                const canView = Boolean(doneJob);
+                const inCurrentRun = Boolean(inRunSet?.has(row.enrollmentId));
                 const statusLabel = latest
                   ? latest.status.charAt(0).toUpperCase() + latest.status.slice(1)
-                  : "—";
+                  : isGenerating && inCurrentRun
+                    ? "Starting…"
+                    : "—";
                 return (
                   <tr key={row.enrollmentId} className="bg-white">
                     <td className="px-4 py-3 text-gray-900">{row.programName}</td>
@@ -90,26 +154,13 @@ export function EnrollmentsReportTable({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={!canView}
-                        title={
-                          canView
-                            ? "Open generated report"
-                            : "Report will be available when generation completes"
-                        }
-                        onClick={() => {
-                          if (!doneJob) return;
-                          onViewReport(doneJob.id, row.enrollmentId);
-                        }}
-                        className={`inline-flex min-w-[7rem] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                          canView
-                            ? "bg-primary text-white hover:bg-blue-600"
-                            : "cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400"
-                        }`}
-                      >
-                        View report
-                      </button>
+                      <ViewReportButton
+                        rowEnrollmentId={row.enrollmentId}
+                        latest={latest}
+                        doneJob={doneJob}
+                        inCurrentRun={inCurrentRun}
+                        onView={onViewReport}
+                      />
                     </td>
                   </tr>
                 );

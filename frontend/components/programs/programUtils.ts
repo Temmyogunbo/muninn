@@ -34,6 +34,7 @@ export function emptyProgramForm(): ProgramCreateInput {
     end_date: "",
     location: "",
     program_type: "summer_camp",
+    course_id: "",
   };
 }
 
@@ -44,5 +45,6 @@ export function programToForm(p: IProgram): ProgramCreateInput {
     end_date: toDateInputValue(p.end_date),
     location: p.location,
     program_type: p.program_type,
+    course_id: p.course_id ?? "",
   };
 }

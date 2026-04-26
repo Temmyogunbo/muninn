@@ -1,16 +1,22 @@
 import Link from "next/link";
 import { IconPencil, IconTrash2 } from "@/components/icons/ProgramTableIcons";
 import { formatDate, programTypeLabel } from "./programUtils";
-import type { IProgram } from "@/lib/types";
+import type { CourseRow, IProgram } from "@/lib/types";
 
 type Props = {
   programs: IProgram[];
+  courses: CourseRow[];
   deletingId: string | null;
   onEdit: (p: IProgram) => void;
   onDelete: (p: IProgram) => void;
 };
 
-export function ProgramsTable({ programs, deletingId, onEdit, onDelete }: Props) {
+function courseTitle(courses: CourseRow[], courseId: string | undefined): string {
+  if (!courseId) return "—";
+  return courses.find((c) => c.id === courseId)?.title ?? "—";
+}
+
+export function ProgramsTable({ programs, courses, deletingId, onEdit, onDelete }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
       <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
@@ -18,6 +24,9 @@ export function ProgramsTable({ programs, deletingId, onEdit, onDelete }: Props)
           <tr className="border-b border-zinc-200 bg-zinc-50/90 dark:border-zinc-800 dark:bg-zinc-900/50">
             <th scope="col" className="px-3 py-3 font-medium text-zinc-700 dark:text-zinc-200">
               Name
+            </th>
+            <th scope="col" className="px-3 py-3 font-medium text-zinc-700 dark:text-zinc-200">
+              Course
             </th>
             <th scope="col" className="px-3 py-3 font-medium text-zinc-700 dark:text-zinc-200">
               Start
@@ -47,6 +56,7 @@ export function ProgramsTable({ programs, deletingId, onEdit, onDelete }: Props)
                   {p.name}
                 </Link>
               </td>
+              <td className="px-3 py-2.5 text-zinc-600 dark:text-zinc-300">{courseTitle(courses, p.course_id)}</td>
               <td className="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">{formatDate(p.start_date)}</td>
               <td className="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">{formatDate(p.end_date)}</td>
               <td className="px-3 py-2.5 text-zinc-700 dark:text-zinc-300">{p.location}</td>

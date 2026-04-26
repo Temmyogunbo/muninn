@@ -15,7 +15,6 @@ const nav = [
   { href: "/programs", label: "Programs" },
   { href: "/courses", label: "Courses" },
   { href: "/students", label: "Students" },
-  { href: "/enrollments", label: "Enrollments" },
   { href: "/profile", label: "Profile" },
 ];
 
