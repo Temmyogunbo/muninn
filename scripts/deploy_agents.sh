@@ -14,7 +14,7 @@ echo "🚀 Deploying to ${ENVIRONMENT}..."
 echo "📂 Project root: $PROJECT_ROOT"
 
 echo "📦 Building infrastructure and deploying Lambda functions..."
-uv run $PROJECT_ROOT/scripts/deploy-agents.py $ENVIRONMENT $PROJECT_NAME
+uv run $PROJECT_ROOT/scripts/deploy_agents.py $ENVIRONMENT $PROJECT_NAME
 
 echo "🤖 Deploying agents to $ENVIRONMENT..."
 

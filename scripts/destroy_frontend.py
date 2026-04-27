@@ -130,63 +130,6 @@ def destroy_frontend_terraform():
 
     return success
 
-def destroy_agents_terraform():
-    """Destroy Agents Infrastructure with Terraform."""
-    print("\n🏗️  Destroying Agents Infrastructure with Terraform...")
-
-    terraform_dir = Path(__file__).parent.parent / "terraform" / "agents"
-
-    if not terraform_dir.exists():
-        print(f"  ❌ Agents Terraform directory not found: {terraform_dir}")
-        return False
-
-    # Check if Terraform is initialized
-    if not (terraform_dir / ".terraform").exists():
-        print("  ⚠️  Agents Terraform not initialized, nothing to destroy")
-        return True
-
-    # Destroy the infrastructure
-    print("  Running Agents Terraform destroy...")
-    print("  Type 'yes' when prompted to confirm destruction.")
-
-    success = run_command(["terraform", "destroy"], cwd=terraform_dir)
-
-    if success:
-        print("  ✅ Agents Infrastructure destroyed successfully")
-    else:
-        print("  ❌ Failed to destroy Agents Infrastructure")
-        print("  You may need to manually clean up resources in AWS Console")
-
-    return success
-
-def destroy_database_terraform():
-    """Destroy infrastructure with Terraform."""
-    print("\n🏗️  Destroying Database Infrastructure with Terraform...")
-
-    terraform_dir = Path(__file__).parent.parent / "terraform" / "database"
-
-    if not terraform_dir.exists():
-        print(f"  ❌ Database Terraform directory not found: {terraform_dir}")
-        return False
-
-    # Check if Terraform is initialized
-    if not (terraform_dir / ".terraform").exists():
-        print("  ⚠️  Database Terraform not initialized, nothing to destroy")
-        return True
-
-    # Destroy the infrastructure
-    print("  Running Database Terraform destroy...")
-    print("  Type 'yes' when prompted to confirm destruction.")
-
-    success = run_command(["terraform", "destroy"], cwd=terraform_dir)
-
-    if success:
-        print("  ✅ Database Infrastructure destroyed successfully")
-    else:
-        print("  ❌ Failed to destroy Database Infrastructure")
-        print("  You may need to manually clean up resources in AWS Console")
-
-    return success
 def clean_local_artifacts():
     """Clean up local build artifacts."""
     print("\n🧹 Cleaning up local artifacts...")
@@ -213,7 +156,7 @@ def clean_local_artifacts():
 
 def main():
     """Main destruction function."""
-    print("💥 Alex Financial Advisor - Part 7 Infrastructure Destruction")
+    print("💥 Muninn Infrastructure Destruction")
     print("=" * 60)
     
     # Confirm destruction
@@ -230,8 +173,6 @@ def main():
 
     # Destroy Terraform infrastructure
     destroy_frontend_terraform()
-    destroy_agents_terraform()
-    destroy_database_terraform()
 
     # Clean local artifacts
     clean_local_artifacts()

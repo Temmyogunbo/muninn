@@ -13,7 +13,7 @@ echo "📂 Project root: $PROJECT_ROOT"
 
 # 1. Package Lambda
 echo "📦 Packaging Lambda..."
-uv run $PROJECT_ROOT/scripts/package-frontend.py $ENVIRONMENT $PROJECT_NAME
+uv run $PROJECT_ROOT/scripts/package_frontend.py $ENVIRONMENT $PROJECT_NAME
 
 echo "Building Infrasturcture..."
 
@@ -48,7 +48,7 @@ echo "🎯 Applying Terraform..."
 
 # 2. Deploy infrastructure and Lambda functions
 echo "📦 Deploying frontend and Lambda functions..."
-uv run $PROJECT_ROOT/scripts/deploy-frontend.py $ENVIRONMENT $PROJECT_NAME
+uv run $PROJECT_ROOT/scripts/deploy_frontend.py $ENVIRONMENT $PROJECT_NAME
 
 # 3. Final messages
 echo -e "\n✅ Deployment complete!"
