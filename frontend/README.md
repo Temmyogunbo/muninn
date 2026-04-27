@@ -4,6 +4,8 @@ The **Muninn** web app: a **Next.js** (Pages Router) client for camp **programs*
 
 This project uses **static export** (`output: 'export'` in `next.config.ts`), so there is no Next.js server at runtime. The app is a static bundle (for example S3 + CloudFront); all data comes from the external API.
 
+**Platform architecture** (Mermaid diagram, AWS overview, and handwritten sketch) lives in the repository root: **[`README.md`](../README.md)**.
+
 ---
 
 ## How it works
